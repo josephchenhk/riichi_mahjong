@@ -34,7 +34,9 @@ import matplotlib.pyplot as plt
 
 from features import Features 
 from tile import TilesConverter # how to import it beyond top-level package?
+# ADD Some comments bla bla
 
+# ADD: bla bla
 
 def file_len(fname):
     with open(fname) as f:
