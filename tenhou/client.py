@@ -1,0 +1,612 @@
+# -*- coding: utf-8 -*-
+import datetime
+import logging
+import socket
+from threading import Thread
+from time import sleep
+from urllib.parse import quote
+
+from mahjong.constants import DISPLAY_WINDS
+from mahjong.stat import Statistics
+from utils.settings_handler import settings
+from mahjong.client import Client
+from mahjong.meld import Meld
+from mahjong.tile import TilesConverter
+from tenhou.decoder import TenhouDecoder
+
+logger = logging.getLogger('tenhou')
+
+
+class TenhouClient(Client):
+    SLEEP_BETWEEN_ACTIONS = 1
+
+    statistics = None
+    socket = None
+    game_is_continue = True
+    looking_for_game = True
+    keep_alive_thread = None
+    reconnected_messages = None
+
+    decoder = TenhouDecoder()
+
+    _count_of_empty_messages = 0
+    _rating_string = None
+    _socket_mock = None
+
+    def __init__(self, socket_mock=None):
+        super().__init__()
+        self.statistics = Statistics()
+        self._socket_mock = socket_mock
+
+    def connect(self):
+        # for reproducer
+        if self._socket_mock:
+            self.socket = self._socket_mock
+            TenhouClient.SLEEP_BETWEEN_ACTIONS = 0
+        else:
+            self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+        self.socket.connect((settings.TENHOU_HOST, settings.TENHOU_PORT))
+
+    def authenticate(self):
+        self._send_message('<HELO name="{}" tid="f0" sx="M" />'.format(quote(settings.USER_ID)))
+        messages = self._get_multiple_messages()
+        auth_message = messages[0]
+
+        if not auth_message:
+            logger.info("Auth message wasn't received")
+            return False
+
+        # we reconnected to the game
+        if '<GO' in auth_message:
+            logger.info('Successfully reconnected')
+            self.reconnected_messages = messages
+
+            selected_game_type = self.decoder.parse_go_tag(auth_message)
+            self._set_game_rules(selected_game_type)
+
+            values = self.decoder.parse_names_and_ranks(messages[1])
+            self.table.set_players_names_and_ranks(values)
+
+            return True
+
+        auth_string, rating_string, new_rank_message = self.decoder.parse_hello_string(auth_message)
+        self._rating_string = rating_string
+        if not auth_string:
+            logger.info("We didn't obtain auth string")
+            return False
+
+        if new_rank_message:
+            logger.info('Achieved a new rank! \n {}'.format(new_rank_message))
+
+        auth_token = self.decoder.generate_auth_token(auth_string)
+
+        self._send_message('<AUTH val="{}"/>'.format(auth_token))
+        self._send_message(self._pxr_tag())
+
+        # sometimes tenhou send an empty tag after authentication (in tournament mode)
+        # and bot thinks that he was not auth
+        # to prevent it lets wait a little bit
+        # and lets read a group of tags
+        continue_reading = True
+        counter = 0
+        authenticated = False
+        while continue_reading:
+            messages = self._get_multiple_messages()
+            for message in messages:
+                if '<LN' in message:
+                    authenticated = True
+                    continue_reading = False
+
+            counter += 1
+            # to avoid infinity loop
+            if counter > 10:
+                continue_reading = False
+
+        if authenticated:
+            self._send_keep_alive_ping()
+            logger.info('Successfully authenticated')
+            return True
+        else:
+            logger.info('Failed to authenticate')
+            return False
+
+    def start_game(self):
+        log_link = ''
+
+        # play in private or tournament lobby
+        if settings.LOBBY != '0':
+            if settings.IS_TOURNAMENT:
+                logger.info('Go to the tournament lobby: {}'.format(settings.LOBBY))
+                self._send_message('<CS lobby="{}" />'.format(settings.LOBBY))
+                sleep(TenhouClient.SLEEP_BETWEEN_ACTIONS * 2)
+                self._send_message('<DATE />')
+            else:
+                logger.info('Go to the lobby: {}'.format(settings.LOBBY))
+                self._send_message('<CHAT text="{}" />'.format(quote('/lobby {}'.format(settings.LOBBY))))
+                sleep(TenhouClient.SLEEP_BETWEEN_ACTIONS * 2)
+
+        if self.reconnected_messages:
+            # we already in the game
+            self.looking_for_game = False
+            self._send_message('<GOK />')
+            sleep(TenhouClient.SLEEP_BETWEEN_ACTIONS)
+        else:
+            selected_game_type = self._build_game_type()
+            game_type = '{},{}'.format(settings.LOBBY, selected_game_type)
+
+            if not settings.IS_TOURNAMENT:
+                self._send_message('<JOIN t="{}" />'.format(game_type))
+                logger.info('Looking for the game...')
+                #logger2.info('Looking for the game...')
+
+            start_time = datetime.datetime.now()
+
+            while self.looking_for_game:
+                sleep(TenhouClient.SLEEP_BETWEEN_ACTIONS)
+
+                messages = self._get_multiple_messages()
+
+                for message in messages:
+                    if '<REJOIN' in message:
+                        # game wasn't found, continue to wait
+                        self._send_message('<JOIN t="{},r" />'.format(game_type))
+
+                    if '<GO' in message:
+                        self._send_message('<GOK />')
+                        self._send_message('<NEXTREADY />')
+
+                        # we had to have it there
+                        # because for tournaments we don't know
+                        # what exactly game type was set
+                        selected_game_type = self.decoder.parse_go_tag(message)
+                        process_rules = self._set_game_rules(selected_game_type)
+                        if not process_rules:
+                            logger.error('Hirosima (3 man) is not supported at the moment')
+                            self.end_game(success=False)
+                            return
+
+                    if '<TAIKYOKU' in message:
+                        self.looking_for_game = False
+                        game_id, seat = self.decoder.parse_log_link(message)
+                        log_link = 'http://tenhou.net/0/?log={}&tw={}'.format(game_id, seat)
+                        self.statistics.game_id = game_id
+
+                    if '<UN' in message:
+                        values = self.decoder.parse_names_and_ranks(message)
+                        self.table.set_players_names_and_ranks(values)
+
+                    if '<LN' in message:
+                        self._send_message(self._pxr_tag())
+
+                current_time = datetime.datetime.now()
+                time_difference = current_time - start_time
+
+                if time_difference.seconds > 60 * settings.WAITING_GAME_TIMEOUT_MINUTES:
+                    break
+
+        # we wasn't able to find the game in specified time range
+        # sometimes it happens and we need to end process
+        # and try again later
+        if self.looking_for_game:
+            logger.error('Game is not started. Can\'t find the game')
+            self.end_game()
+            return
+
+        logger.info('Game started')
+        logger.info('Log: {}'.format(log_link))
+        logger.info('Players: {}'.format(self.table.players))
+
+        main_player = self.table.player
+
+        meld_tile = None
+        discard_option = None
+        
+        # We use a dict `game_state` to record the process of game (joseph).
+        #
+        # game_state = {"dealer": x,
+        #               "round_wind": xx,
+        #               "player_wind": xx,
+        #               "dora_indicators": [],
+        #               "dora": [],
+        #               "uradora": [],
+        #               "akadora": [],
+        #               "players": {0: {"hands": [],
+        #                               "discards": [],
+        #                               "open_sets": [[],[],...],
+        #                               "concealed_sets": [[],[],...]},
+        #                           1: {"hands": [],
+        #                               "discards": [],
+        #                               "open_sets": [[],[],...],
+        #                               "concealed_sets": [[],[],...]},
+        #                           2: {"hands": [],
+        #                               "discards": [],
+        #                               "open_sets": [[],[],...],
+        #                               "concealed_sets": [[],[],...]},
+        #                           3: {"hands": [],
+        #                               "discards": [],
+        #                               "open_sets": [[],[],...],
+        #                               "concealed_sets": [[],[],...]}
+        #                           }
+        #               }
+#        game_state = {}
+        
+        while self.game_is_continue:
+            sleep(TenhouClient.SLEEP_BETWEEN_ACTIONS)
+            messages = self._get_multiple_messages()
+
+            if self.reconnected_messages:
+                messages = self.reconnected_messages + messages
+                self.reconnected_messages = None
+
+            if not messages:
+                self._count_of_empty_messages += 1
+            else:
+                # we had set to zero counter
+                self._count_of_empty_messages = 0
+
+            for message in messages:
+                if '<INIT' in message or '<REINIT' in message:
+                    values = self.decoder.parse_initial_values(message)
+                    self.table.init_round(
+                        values['round_number'],
+                        values['count_of_honba_sticks'],
+                        values['count_of_riichi_sticks'],
+                        values['dora_indicator'],
+                        values['dealer'],
+                        values['scores'],
+                    )
+
+                    tiles = self.decoder.parse_initial_hand(message)
+                    self.table.player.init_hand(tiles)
+
+                    logger.info(self.table.__str__())
+                    logger.info('Players: {}'.format(self.table.get_players_sorted_by_scores()))
+                    logger.info('Dealer: {}'.format(self.table.get_player(values['dealer'])))
+                    logger.info('Round  wind: {}'.format(DISPLAY_WINDS[self.table.round_wind]))
+                    logger.info('Player wind: {}'.format(DISPLAY_WINDS[main_player.player_wind]))
+
+                    # initialize the game state
+#                    game_state = {}
+#                    game_state["dealer"] = values['dealer']
+#                    game_state["round_wind"] = self.table.round_wind
+#                    game_state["player_wind"] = main_player.player_wind
+#                    game_state["dora_indicator"] = values['dora_indicator']
+#                    logger2.info(game_state)
+
+                if '<REINIT' in message:
+                    players = self.decoder.parse_table_state_after_reconnection(message)
+                    for x in range(0, 4):
+                        player = players[x]
+                        for item in player['discards']:
+                            self.table.add_discarded_tile(x, item, False)
+
+                        for item in player['melds']:
+                            if x == 0:
+                                tiles = item.tiles
+                                main_player.tiles.extend(tiles)
+                            self.table.add_called_meld(x, item)
+
+                # draw and discard
+                if '<T' in message:
+                    # we won by self draw (tsumo)
+                    if 't="16"' in message:
+                        self._send_message('<N type="7" />')
+                        continue
+
+                    drawn_tile = self.decoder.parse_tile(message)
+
+                    if not main_player.in_riichi:
+                        logger.info('Hand: {}'.format(main_player.format_hand_for_print(drawn_tile)))
+
+                        self.player.draw_tile(drawn_tile)
+                        sleep(TenhouClient.SLEEP_BETWEEN_ACTIONS)
+
+                        kan_type = self.player.can_call_kan(drawn_tile, False)
+                        if kan_type:
+                            if kan_type == Meld.CHANKAN:
+                                meld_type = 5
+                            else:
+                                meld_type = 4
+                            self._send_message('<N type="{}" hai="{}" />'.format(meld_type, drawn_tile))
+                            logger.info('We called a closed kan\chankan set!')
+                            continue
+
+                        discarded_tile = self.player.discard_tile()
+                        logger.info('Discard: {}'.format(TilesConverter.to_one_line_string([discarded_tile])))
+
+                        can_call_riichi = main_player.can_call_riichi()
+                        print("<<---------------------!>")
+                        print(main_player)
+                        
+
+                        # let's call riichi
+                        if can_call_riichi:
+                            self._send_message('<REACH hai="{}" />'.format(discarded_tile))
+                            sleep(TenhouClient.SLEEP_BETWEEN_ACTIONS)
+                            main_player.in_riichi = True
+                    else:
+                        # we had to add it to discards, to calculate remaining tiles correctly
+                        discarded_tile = drawn_tile
+                        self.table.add_discarded_tile(0, discarded_tile, True)
+
+                    # tenhou format: <D p="133" />
+                    self._send_message('<D p="{}"/>'.format(discarded_tile))
+
+                    logger.info('Remaining tiles: {}'.format(self.table.count_of_remaining_tiles))
+
+                # new dora indicator after kan
+                if '<DORA' in message:
+                    tile = self.decoder.parse_dora_indicator(message)
+                    self.table.add_dora_indicator(tile)
+                    logger.info('New dora indicator: {}'.format(TilesConverter.to_one_line_string([tile])))
+
+                if '<REACH' in message and 'step="1"' in message:
+                    who_called_riichi = self.decoder.parse_who_called_riichi(message)
+                    self.table.add_called_riichi(who_called_riichi)
+                    logger.info('Riichi called by {} player'.format(who_called_riichi))
+
+                # the end of round
+                if '<AGARI' in message or '<RYUUKYOKU' in message:
+                    sleep(TenhouClient.SLEEP_BETWEEN_ACTIONS * 7)
+                    self._send_message('<NEXTREADY />')
+
+                # set was called
+                if '<N who=' in message:
+                    player_formatted_hand = ''
+                    if meld_tile:
+                        player_formatted_hand = main_player.format_hand_for_print(meld_tile)
+
+                    meld = self.decoder.parse_meld(message)
+                    self.table.add_called_meld(meld.who, meld)
+                    logger.info('Meld: {} by {}'.format(meld, meld.who))
+
+                    # tenhou confirmed that we called a meld
+                    # we had to do discard after this
+                    if meld.who == 0:
+                        if meld.type != Meld.KAN and meld.type != Meld.CHANKAN:
+                            discarded_tile = self.player.discard_tile(discard_option)
+
+                            logger.info('With hand: {}'.format(player_formatted_hand))
+                            logger.info('Discard tile after called meld: {}'.format(
+                                TilesConverter.to_one_line_string([discarded_tile]))
+                            )
+
+                            self.player.tiles.append(meld_tile)
+                            self._send_message('<D p="{}"/>'.format(discarded_tile))
+
+                win_suggestions = ['t="8"', 't="9"', 't="12"', 't="13"']
+                # we win by other player's discard
+                if any(i in message for i in win_suggestions):
+                    sleep(TenhouClient.SLEEP_BETWEEN_ACTIONS)
+                    self._send_message('<N type="6" />')
+
+                if self.decoder.is_discarded_tile_message(message):
+                    tile = self.decoder.parse_tile(message)
+
+                    # <e21/> - is tsumogiri
+                    # <E21/> - discard from the hand
+                    if_tsumogiri = message[1].islower()
+                    
+                    if if_tsumogiri:
+                        print("\ntsumogiri: {}\n".format(message))
+                    
+                    player_sign = message.lower()[1]
+                    if player_sign == 'e':
+                        player_seat = 1
+                    elif player_sign == 'f':
+                        player_seat = 2
+                    else:
+                        player_seat = 3
+
+                    self.table.add_discarded_tile(player_seat, tile, if_tsumogiri)
+
+                    # open hand suggestions
+                    if 't=' in message:
+                        # for now I'm not sure about what sets was suggested to call with this numbers
+                        # will find it out later
+                        not_allowed_open_sets = ['t="2"', 't="5"', 't="7"']
+                        if any(i in message for i in not_allowed_open_sets):
+                            sleep(TenhouClient.SLEEP_BETWEEN_ACTIONS)
+                            self._send_message('<N />')
+                            continue
+
+                        # t="1" - call pon set
+                        # t="3" - call kan set
+                        # t="4" - call chi set
+
+                        # kan
+                        if 't="3"' in message:
+                            if self.player.can_call_kan(tile, True):
+                                self._send_message('<N type="2" />')
+                                logger.info('We called an open kan set!')
+                                continue
+
+                        # chi or pon
+                        is_kamicha_discard = False
+                        if 't="4"' in message:
+                            is_kamicha_discard = True
+
+                        meld, discard_option = self.player.try_to_call_meld(tile, is_kamicha_discard)
+                        if meld:
+                            meld_tile = tile
+
+                            meld_type = '1'
+                            if meld.type == Meld.CHI:
+                                # yeah it is 3, not 4
+                                # because of tenhou protocol
+                                meld_type = '3'
+
+                            tiles = meld.tiles
+                            tiles.remove(meld_tile)
+
+                            # try to call a meld
+                            self._send_message('<N type="{}" hai0="{}" hai1="{}" />'.format(
+                                meld_type,
+                                tiles[0],
+                                tiles[1]
+                            ))
+                        # this meld will not improve our hand
+                        else:
+                            sleep(TenhouClient.SLEEP_BETWEEN_ACTIONS)
+                            self._send_message('<N />')
+
+                if 'owari' in message:
+                    values = self.decoder.parse_final_scores_and_uma(message)
+                    self.table.set_players_scores(values['scores'], values['uma'])
+
+                if '<PROF' in message:
+                    self.game_is_continue = False
+                    
+            # ADD: Just to see what information self.table can give us.
+            # you may comment the following lines if un-necessary.
+            logger.info("\n------------ View Table --------------")
+            logger.info("revealed tiles:{}".format(self.table.revealed_tiles))
+            logger.info("tiles of player: {}".format(self.table.players[0].tiles))
+            logger.info("--------------------------------------\n")
+
+            if self._count_of_empty_messages >= 5:
+                logger.error('We are getting empty messages from socket. Probably socket connection was closed')
+                self.end_game(False)
+                return
+
+        logger.info('Final results: {}'.format(self.table.get_players_sorted_by_scores()))
+
+        # we need to finish the game, and only after this try to send statistics
+        # if order will be different, tenhou will return 404 on log download endpoint
+        self.end_game()
+
+        # sometimes log is not available just after the game
+        # let's wait one minute before the statistics update
+        if settings.STAT_SERVER_URL:
+            sleep(60)
+            result = self.statistics.send_statistics()
+            logger.info('Statistics sent: {}'.format(result))
+
+    def end_game(self, success=True):
+        self.game_is_continue = False
+        if success:
+            self._send_message('<BYE />')
+
+        if self.keep_alive_thread:
+            self.keep_alive_thread.join()
+
+        try:
+            self.socket.shutdown(socket.SHUT_RDWR)
+            self.socket.close()
+        except OSError:
+            pass
+
+        if success:
+            logger.info('End of the game')
+        else:
+            logger.error('Game was ended without success')
+
+    def _send_message(self, message):
+        # tenhou requires an empty byte in the end of each sending message
+        logger.debug('Send: {}'.format(message))
+        message += '\0'
+        self.socket.sendall(message.encode())
+
+    def _read_message(self):
+        message = self.socket.recv(2048)
+        logger.debug('Get: {}'.format(message.decode('utf-8').replace('\x00', ' ')))
+        return message.decode('utf-8')
+
+    def _get_multiple_messages(self):
+        # tenhou can send multiple messages in one request
+        messages = self._read_message()
+        messages = messages.split('\x00')
+        # last message always is empty after split, so let's exclude it
+        messages = messages[0:-1]
+
+        return messages
+
+    def _send_keep_alive_ping(self):
+        def send_request():
+            while self.game_is_continue:
+                self._send_message('<Z />')
+
+                # we can't use sleep(15), because we want to be able
+                # end thread in the middle of running
+                seconds_to_sleep = 15
+                for x in range(0, seconds_to_sleep * 2):
+                    if self.game_is_continue:
+                        sleep(0.5)
+
+        self.keep_alive_thread = Thread(target=send_request)
+        self.keep_alive_thread.start()
+
+    def _pxr_tag(self):
+        # I have no idea why we need to send it, but better to do it
+        if settings.IS_TOURNAMENT:
+            return '<PXR V="-1" />'
+
+        if settings.USER_ID == 'NoName':
+            return '<PXR V="1" />'
+        else:
+            return '<PXR V="9" />'
+
+    def _build_game_type(self):
+        # usual case, we specified game type to play
+        if settings.GAME_TYPE is not None:
+            return settings.GAME_TYPE
+
+        # kyu lobby, hanchan ari-ari
+        default_game_type = '9'
+
+        if settings.LOBBY != '0':
+            logger.error("We can't use dynamic game type and custom lobby. Default game type was set")
+            return default_game_type
+
+        if not self._rating_string:
+            logger.error("For NoName dynamic game type is not available. Default game type was set")
+            return default_game_type
+
+        temp = self._rating_string.split(',')
+        dan = int(temp[0])
+        rate = float(temp[2])
+        logger.info('Player has {} rank and {} rate'.format(TenhouDecoder.RANKS[dan], rate))
+
+        game_type = default_game_type
+        # dan lobby, we can play here from 1 kyu
+        if dan >= 9:
+            game_type = '137'
+
+        # upperdan lobby, we can play here from 4 dan and with 1800+ rate
+        if dan >= 13 and rate >= 1800:
+            game_type = '41'
+
+        # phoenix lobby, we can play here from 7 dan and with 2000+ rate
+        if dan >= 16 and rate >= 2000:
+            game_type = '169'
+
+        return game_type
+
+    def _set_game_rules(self, game_type):
+        """
+        Set game related settings and
+        return false, if we are trying to play 3 man game
+        """
+        # need to find a better way to do it
+        rules = bin(int(game_type)).replace('0b', '')
+        while len(rules) != 8:
+            rules = '0' + rules
+
+        is_hanchan = rules[4] == '1'
+        is_open_tanyao = rules[5] == '0'
+        is_aka = rules[6] == '0'
+        is_hirosima = rules[3] == '1'
+
+        if is_hirosima:
+            return False
+
+        settings.FIVE_REDS = is_aka
+        settings.OPEN_TANYAO = is_open_tanyao
+
+        logger.info('Game settings:')
+        logger.info('Aka dora: {}'.format(settings.FIVE_REDS))
+        logger.info('Open tanyao: {}'.format(settings.OPEN_TANYAO))
+        logger.info('Game type: {}'.format(is_hanchan and 'hanchan' or 'tonpusen'))
+
+        return True
