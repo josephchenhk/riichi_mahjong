@@ -32,11 +32,11 @@ from sklearn.feature_extraction import DictVectorizer
 
 import matplotlib.pyplot as plt
 
-from features import Features 
-from tile import TilesConverter # how to import it beyond top-level package?
-# ADD Some comments bla bla
+from utils.features import Features 
+from utils.tile import TilesConverter 
 
-# ADD: bla bla
+from ..settings.settings import abs_path
+
 
 def file_len(fname):
     with open(fname) as f:
@@ -1284,6 +1284,7 @@ class WaitingTilesEvaluation(object):
 if __name__=="__main__":
 
     tic = time.time()
+    print(abs_path)
     
 #    is_waiting_data_preprocessing()
 #    waiting_tiles_data_preprocessing() 
@@ -1306,8 +1307,8 @@ if __name__=="__main__":
 #                               "AUC_waiting_tile_{}.png".format(tile))
 #                    )
     
-    clf, avg_mse_scores = train_scores_partial_fit(load_classifier=False, save_classifier=True)
-    
+#    clf, avg_mse_scores = train_scores_partial_fit(load_classifier=False, save_classifier=True)
+#    
 #    waiting_tiles_evaluation = WaitingTilesEvaluation()
 #    evaluation = waiting_tiles_evaluation.accuracy_of_prediction()
 #    print("Evaluation value: {}".format(evaluation))
