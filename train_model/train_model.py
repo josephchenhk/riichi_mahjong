@@ -32,10 +32,10 @@ from sklearn.feature_extraction import DictVectorizer
 
 import matplotlib.pyplot as plt
 
-from utils.features import Features 
-from utils.tile import TilesConverter 
+from train_model.utils.features import Features 
+from train_model.utils.tile import TilesConverter 
 
-from ..settings.settings import abs_path
+from settings.settings import abs_data_path
 
 
 def file_len(fname):
