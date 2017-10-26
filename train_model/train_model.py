@@ -17,7 +17,6 @@ import ast
 from functools import reduce
 import shutil
 import random
-
 from sklearn.linear_model import LogisticRegression
 from sklearn.linear_model import SGDClassifier
 from sklearn.linear_model import SGDRegressor
@@ -31,12 +30,11 @@ from sklearn.preprocessing import OneHotEncoder
 from sklearn.preprocessing import LabelBinarizer
 from sklearn.feature_extraction import DictVectorizer
 from sklearn.preprocessing import StandardScaler
-
 import matplotlib.pyplot as plt
 
 from train_model.utils.features import Features 
 from train_model.utils.tile import TilesConverter 
-
+from train_model.utils.features_of_score import FeaturesOfScore
 from config.config import abs_data_path
 
 
@@ -324,13 +322,13 @@ def load_and_process_scores_data(debuglog_name="", num_lines=None, chunk_size=10
                                                         player_seat,
                                                         player_uma)
                 #f3, f4, f5, f6, f7, f8, f9, f10, f11 = features
-                f1, f2, f3, f4, f5, f6, f7 = features 
+                f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13 = features 
                 #print(n, [len([f1]), len([f2]), len([f3]), len([f4]), len([f5]), len(f6), len(f7), len(f8), len(f9), len(f10), len(f11)])
                 target = gen_scores_targets(d3) # scores lost to the winner
                 target_list.append(target)
                 
                 #feature_list.append([f1]+[f2]+[f3]+[f4]+[f5]+f6+f7+f8+f9+f10+f11)
-                feature_list.append([f1]+[f2]+[f3]+[f4]+[f5]+f6+f7)
+                feature_list.append([f1]+[f2]+[f3]+[f4]+[f5]+f6+f7+[f8]+[f9]+[f10]+[f11]+[f12]+[f13])
                 
                 if m==chunk_size:
                     print(k)
@@ -580,13 +578,26 @@ def gen_scores_features(table_count_of_honba_sticks,
     
     num_bonus_tiles_in_revealed_melds = len(bonus_tiles_in_revealed_melds)
 
+    ft = FeaturesOfScore(discarded_tiles_34_array,
+                         revealed_melded_tiles_34_array,
+                         table_revealed_tiles)
+
     f1 = player_in_riichi
     f2 = player_is_dealer
     f3 = player_is_open_hand
     f4 = num_bonus_tiles_in_revealed_melds
     f5 = num_revealed_melds
+    
     f6 = discarded_tiles_34_array
     f7 = revealed_melded_tiles_34_array
+    
+    f8 = ft.is_discards_all_simples()
+    f9 = ft.num_revealed_melds_of_wind_tiles()
+    f10 = ft.num_revealed_melds_of_dragon_tiles()
+    f11 = ft.can_hands_be_all_pons()
+    f12 = ft.can_hands_be_flush()
+    f13 = ft.can_hands_be_all_simples()
+    
 #    f2 = num_revealed_melds
 #    f3 = num_discarded_tiles
 #    f4 = table_turns
@@ -598,7 +609,7 @@ def gen_scores_features(table_count_of_honba_sticks,
 #    f10 = table_revealed_tiles
 #    f11 = changed_tiles_34_array
 
-    return f1, f2, f3, f4, f5, f6, f7#, f8, f9, f10, f11
+    return f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13
 
 
 def gen_is_waiting_targets(player_winning_tiles):
@@ -834,7 +845,7 @@ def train_scores_partial_fit(load_classifier=False, save_classifier=False):
     """
     full_dir = abs_data_path+"/train_model/data/scores/full_for_partial_fit"
     dir_names = os.listdir(full_dir)
-    hidden_layers = (300,)*10
+    hidden_layers = (100,)*8
     classifier = MLPRegressor(verbose=True, 
                               hidden_layer_sizes=hidden_layers,
                                learning_rate_init=0.001,
