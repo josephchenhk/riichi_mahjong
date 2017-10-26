@@ -23,19 +23,21 @@ from sklearn.linear_model import SGDClassifier
 from sklearn.linear_model import SGDRegressor
 from sklearn.svm import SVC
 from sklearn.neural_network import MLPClassifier
+from sklearn.neural_network import MLPRegressor
 from sklearn.model_selection import train_test_split
 from sklearn.model_selection import cross_val_score, cross_val_predict
 from sklearn import metrics
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.preprocessing import LabelBinarizer
 from sklearn.feature_extraction import DictVectorizer
+from sklearn.preprocessing import StandardScaler
 
 import matplotlib.pyplot as plt
 
 from train_model.utils.features import Features 
 from train_model.utils.tile import TilesConverter 
 
-from settings.settings import abs_data_path
+from config.config import abs_data_path
 
 
 def file_len(fname):
@@ -322,13 +324,13 @@ def load_and_process_scores_data(debuglog_name="", num_lines=None, chunk_size=10
                                                         player_seat,
                                                         player_uma)
                 #f3, f4, f5, f6, f7, f8, f9, f10, f11 = features
-                f1, f2, f3, f4, f5, f6 = features 
+                f1, f2, f3, f4, f5, f6, f7 = features 
                 #print(n, [len([f1]), len([f2]), len([f3]), len([f4]), len([f5]), len(f6), len(f7), len(f8), len(f9), len(f10), len(f11)])
                 target = gen_scores_targets(d3) # scores lost to the winner
                 target_list.append(target)
                 
                 #feature_list.append([f1]+[f2]+[f3]+[f4]+[f5]+f6+f7+f8+f9+f10+f11)
-                feature_list.append([f1]+[f2]+[f3]+[f4]+f5+f6)
+                feature_list.append([f1]+[f2]+[f3]+[f4]+[f5]+f6+f7)
                 
                 if m==chunk_size:
                     print(k)
@@ -580,10 +582,11 @@ def gen_scores_features(table_count_of_honba_sticks,
 
     f1 = player_in_riichi
     f2 = player_is_dealer
-    f3 = num_bonus_tiles_in_revealed_melds
-    f4 = num_revealed_melds
-    f5 = discarded_tiles_34_array
-    f6 = revealed_melded_tiles_34_array
+    f3 = player_is_open_hand
+    f4 = num_bonus_tiles_in_revealed_melds
+    f5 = num_revealed_melds
+    f6 = discarded_tiles_34_array
+    f7 = revealed_melded_tiles_34_array
 #    f2 = num_revealed_melds
 #    f3 = num_discarded_tiles
 #    f4 = table_turns
@@ -595,7 +598,7 @@ def gen_scores_features(table_count_of_honba_sticks,
 #    f10 = table_revealed_tiles
 #    f11 = changed_tiles_34_array
 
-    return f1, f2, f3, f4, f5, f6#, f7, f8, f9, f10, f11
+    return f1, f2, f3, f4, f5, f6, f7#, f8, f9, f10, f11
 
 
 def gen_is_waiting_targets(player_winning_tiles):
@@ -612,7 +615,10 @@ def gen_waiting_tiles_targets(player_winning_tiles):
     return waiting_tiles
 
 def gen_scores_targets(score_str):
-    return float(score_str)
+    """return log(score) as in the literature
+    """
+    score = float(score_str)
+    return np.log(-score)
 
     
 """
@@ -828,11 +834,15 @@ def train_scores_partial_fit(load_classifier=False, save_classifier=False):
     """
     full_dir = abs_data_path+"/train_model/data/scores/full_for_partial_fit"
     dir_names = os.listdir(full_dir)
-#    classifier = MLPClassifier(verbose=True, 
-#                               learning_rate_init=0.001,
-#                               batch_size=2000)
-    classifier = SGDRegressor(verbose=True,
-                               loss="squared_loss")
+    hidden_layers = (300,)*10
+    classifier = MLPRegressor(verbose=True, 
+                              hidden_layer_sizes=hidden_layers,
+                               learning_rate_init=0.001,
+                               batch_size="auto")
+#    classifier = SGDRegressor(verbose=True,
+#                               loss="squared_loss")
+
+    scaler = StandardScaler(with_mean=False)
     
     # get full target vector
     for dn in dir_names:
@@ -870,6 +880,8 @@ def train_scores_partial_fit(load_classifier=False, save_classifier=False):
         #y_all = np.array(target_all.T.todense()).ravel()
         
         #print(X.shape, y.shape)
+        scaler.partial_fit(X)
+        X = scaler.transform(X)
         classifier.partial_fit(X, y)
         
         features_path = abs_data_path+"/train_model/data/scores/test/scores_sparse_features.npz"
@@ -886,7 +898,8 @@ def train_scores_partial_fit(load_classifier=False, save_classifier=False):
             
         mse_score = validate_regressor(clf=classifier,
                                        sparse_features=sparse_features,
-                                       sparse_target=sparse_target)
+                                       sparse_target=sparse_target,
+                                       scaler=scaler)
         avg_mse_scores.append(mse_score)
         
         print("--------------------------------")
@@ -906,12 +919,12 @@ def validate_classifier(clf, sparse_features, sparse_target):
     
     auc_scores = []
     accuracy_scores = []
+    
     for i in range(1):
         #print("random_state is ", i,", and accuracy metrics are:")
         #X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1, random_state=i) 
         
         # ADD: ravel to avoid warning  
-        
         
         y_pred = clf.predict(X_test)
         accuracy_score = metrics.accuracy_score(y_test, y_pred)
@@ -961,14 +974,16 @@ def validate_classifier(clf, sparse_features, sparse_target):
         return -1, -1
 
 
-def validate_regressor(clf, sparse_features, sparse_target):
+def validate_regressor(clf, sparse_features, sparse_target, scaler):
     
     X_test = sparse_features #[0:600000,:]
     y_test = sparse_target.T #[0:600000,:] # just forgot to make the dimension consistent
     y_test = np.array(y_test.todense()).ravel()
     
     mse_scores = []
-    for i in range(1):   
+    for i in range(1): 
+        X_test = scaler.transform(X_test)
+        #print(X_test[1:4,:].todense(),"!!!")
         y_pred = clf.predict(X_test)
         mse_score = metrics.mean_squared_error(y_test, y_pred)
         mse_scores.append(mse_score)
