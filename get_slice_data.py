@@ -4,7 +4,7 @@ Created on Fri Sep 15 10:41:50 2017
 
 @author: joseph.chen
 """
-from settings.settings import abs_data_path
+from config.config import abs_data_path
 
 if __name__=="__main__":
     
@@ -13,10 +13,10 @@ if __name__=="__main__":
 #        n1 = 700000*n       # 0
 #        n2 = 700000*(n+1)   # 600000
         
-    # Total 5067 lines. So we take 500*10 = 5,000 samples
+    # Total 106259 lines. So we take 10000*10 = 100,000 samples
     for n in range(10):
-        n1 = 500*n       # 0
-        n2 = 500*(n+1)   # 600000
+        n1 = 10000*n       # 0
+        n2 = 10000*(n+1)   # 600000
         
         # Slice the data and save the pieces to hard disk
         k = 0

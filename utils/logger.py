@@ -7,13 +7,14 @@ import hashlib
 import sys
 
 from utils.settings_handler import settings
-
+from config.config import abs_data_path
 
 def set_up_logging():
     """
     Logger for tenhou communication and AI output
     """
-    logs_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', 'logs')
+    #logs_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', 'logs')
+    logs_directory = os.path.join(abs_data_path, 'logs')
     if not os.path.exists(logs_directory):
         os.mkdir(logs_directory)
 
@@ -44,7 +45,8 @@ def set_up_logging():
     logger.addHandler(fh)
     
     ###########################################################################
-    debug_logs_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', 'debuglogs')
+    #debug_logs_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', 'debuglogs')
+    debug_logs_directory = os.path.join(abs_data_path, 'debuglogs')
     if not os.path.exists(debug_logs_directory):
         os.mkdir(debug_logs_directory)
         
@@ -55,7 +57,9 @@ def set_up_logging():
     # ['C:/Users/joseph.chen/Projects/Tenhou/tenhou-python-bot-master/project/reproducer_test.py', '-m', '../../data/20061030gm-0001-0000-366b66c4.mjlog', '-d']
     # the obtained file name would be: 20061030gm-0001-0000-366b66c4
     if len(sys.argv)>=2:
-        file_name = '{}.debuglog'.format(sys.argv[-2].split("/")[-1].split(".")[0])
+        #file_name = '{}.debuglog'.format(sys.argv[-2].split("/")[-1].split(".")[0])
+        #file_name = '{}.debuglog'.format(sys.argv[-2].split("\\")[-1].split(".")[0])
+        file_name = "testscores.debuglog"
     else:
         file_name = "test.debuglog"
     fh = logging.FileHandler(os.path.join(debug_logs_directory, file_name))

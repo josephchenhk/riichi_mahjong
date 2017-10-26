@@ -9,20 +9,23 @@ import subprocess
 import os
 import time
 
+from config.config import abs_data_path
+
 if __name__=="__main__":
         
     # read file names 
-    mjlog_names = os.listdir("../../data")
+    mjlog_names = os.listdir(abs_data_path+"/raw_data")
     #print(mjlog_names)
     tic = time.time()
     print("Start time:{}".format(tic))
     
-    for n,fn in enumerate(mjlog_names[0:1500]): # (mjlog_names[0:30000]):
+    for n,fn in enumerate(mjlog_names[:]): # (mjlog_names[0:30000]):
         if "mjlog" not in fn:
             continue
         
         #cmd = "python reproducer_test.py -m ..\..\data\{} -d".format(fn)
-        cmd = "python reproducer_test_for_scores.py -m ..\..\data\{} -d".format(fn) 
+        mjlog = os.path.join(abs_data_path, "raw_data", fn)
+        cmd = "python reproducer_test_for_scores.py -m {} -d".format(mjlog) 
         
         os.system(cmd)
         #subprocess.call(['python', 'reproducer_test.py', '-m', '..\..\data\{} -d'.format(fn), '-d' ])
