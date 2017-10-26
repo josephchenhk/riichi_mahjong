@@ -23,20 +23,22 @@ from sklearn.linear_model import SGDClassifier
 from sklearn.linear_model import SGDRegressor
 from sklearn.svm import SVC
 from sklearn.neural_network import MLPClassifier
+from sklearn.neural_network import MLPRegressor
 from sklearn.model_selection import train_test_split
 from sklearn.model_selection import cross_val_score, cross_val_predict
 from sklearn import metrics
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.preprocessing import LabelBinarizer
 from sklearn.feature_extraction import DictVectorizer
+from sklearn.preprocessing import StandardScaler
 
 import matplotlib.pyplot as plt
 
-from features import Features 
-from tile import TilesConverter # how to import it beyond top-level package?
-# ADD Some comments bla bla
+from train_model.utils.features import Features 
+from train_model.utils.tile import TilesConverter 
 
-# ADD: bla bla
+from config.config import abs_data_path
+
 
 def file_len(fname):
     with open(fname) as f:
@@ -257,10 +259,10 @@ def load_and_process_scores_data(debuglog_name="", num_lines=None, chunk_size=10
     tic = time.time()
     target_list = []
     feature_list = []
-    with open("../debuglogs/{}.debuglog".format(debuglog_name)) as f:
+    with open(abs_data_path+"/debuglogs/{}.debuglog".format(debuglog_name)) as f:
         m = 1
         
-        existing_files = sorted([int(name.split("_")[-1].split(".")[0]) for name in os.listdir("data/scores/chunk")])
+        existing_files = sorted([int(name.split("_")[-1].split(".")[0]) for name in os.listdir(abs_data_path+"/train_model/data/scores/chunk")])
         if existing_files:
             k = existing_files[-1] + 1
         else:
@@ -322,23 +324,23 @@ def load_and_process_scores_data(debuglog_name="", num_lines=None, chunk_size=10
                                                         player_seat,
                                                         player_uma)
                 #f3, f4, f5, f6, f7, f8, f9, f10, f11 = features
-                f1, f2, f3, f4 = features 
+                f1, f2, f3, f4, f5, f6, f7 = features 
                 #print(n, [len([f1]), len([f2]), len([f3]), len([f4]), len([f5]), len(f6), len(f7), len(f8), len(f9), len(f10), len(f11)])
                 target = gen_scores_targets(d3) # scores lost to the winner
                 target_list.append(target)
                 
                 #feature_list.append([f1]+[f2]+[f3]+[f4]+[f5]+f6+f7+f8+f9+f10+f11)
-                feature_list.append([f1]+[f2]+[f3]+[f4])
+                feature_list.append([f1]+[f2]+[f3]+[f4]+[f5]+f6+f7)
                 
                 if m==chunk_size:
                     print(k)
                     m = 0
                     sparse_features = sp.sparse.csr_matrix(feature_list)
-                    save_sparse_csr("data/scores/chunk/scores_sparse_feature_{}".format(k), sparse_features) 
+                    save_sparse_csr(abs_data_path+"/train_model/data/scores/chunk/scores_sparse_feature_{}".format(k), sparse_features) 
                     feature_list = []
                     
                     sparse_targets = sp.sparse.csr_matrix(target_list)
-                    save_sparse_csr("data/scores/chunk/scores_sparse_target_{}".format(k), sparse_targets) 
+                    save_sparse_csr(abs_data_path+"/train_model/data/scores/chunk/scores_sparse_target_{}".format(k), sparse_targets) 
                     target_list = []
                     
                     k += 1
@@ -352,12 +354,12 @@ def load_and_process_scores_data(debuglog_name="", num_lines=None, chunk_size=10
     if target_list:
         sparse_targets = sp.sparse.csr_matrix(target_list)
         print("sparse_target size: {}".format(sparse_targets.shape))
-        save_sparse_csr("data/scores/chunk/scores_sparse_target_{}".format(k), sparse_targets) 
+        save_sparse_csr(abs_data_path+"/train_model/data/scores/chunk/scores_sparse_target_{}".format(k), sparse_targets) 
         
     if feature_list:
         sparse_features = sp.sparse.csr_matrix(feature_list)
         print("sparse_features size: {}".format(sparse_features.shape))
-        save_sparse_csr("data/scores/chunk/scores_sparse_feature_{}".format(k), sparse_features) 
+        save_sparse_csr(abs_data_path+"/train_model/data/scores/chunk/scores_sparse_feature_{}".format(k), sparse_features) 
     
     toc = time.time()
     print("Data `Scores` has been loaded successfully (Time: {:.2f} seconds). Wait for parsing...".format(toc-tic))
@@ -559,15 +561,15 @@ def gen_scores_features(table_count_of_honba_sticks,
 
     #ft = Features()
     
-#    num_revealed_melds = len(player_melds)
-#    discarded_tiles = [d[0] for d in player_discarded_tiles]
-#    discarded_tiles_34_array = TilesConverter.to_34_array(discarded_tiles)
+    num_revealed_melds = len(player_melds)
+    discarded_tiles = [d[0] for d in player_discarded_tiles]
+    discarded_tiles_34_array = TilesConverter.to_34_array(discarded_tiles)
 #    num_discarded_tiles = len(discarded_tiles)
 #    changed_tiles = [d[0] for d in player_discarded_tiles if d[1]==0]
 #    changed_tiles_34_array = TilesConverter.to_34_array(changed_tiles)
 #    num_changed_tiles = len(changed_tiles)
-#    revealed_melded_tiles = reduce(lambda x,y:x+y, [m[0] for m in player_melds]) if player_melds else []   
-#    revealed_melded_tiles_34_array = TilesConverter.to_34_array(revealed_melded_tiles)
+    revealed_melded_tiles = reduce(lambda x,y:x+y, [m[0] for m in player_melds]) if player_melds else []   
+    revealed_melded_tiles_34_array = TilesConverter.to_34_array(revealed_melded_tiles)
 #    revealed_melds_discarded_tiles = [m[2][0] for m in player_melds] 
 #    revealed_melds_discarded_tiles_34_array = TilesConverter.to_34_array(revealed_melds_discarded_tiles)
 #    discarded_bonus_tiles = [d for d in discarded_tiles if d in table_dora_tiles]
@@ -576,11 +578,15 @@ def gen_scores_features(table_count_of_honba_sticks,
     revealed_melded_tiles = reduce(lambda x,y:x+y, [m[0] for m in player_melds]) if player_melds else []  # 0-135
     bonus_tiles_in_revealed_melds = [t for t in revealed_melded_tiles if t in table_dora_tiles] # 0-135
     
+    num_bonus_tiles_in_revealed_melds = len(bonus_tiles_in_revealed_melds)
 
     f1 = player_in_riichi
     f2 = player_is_dealer
-    f3 = len(bonus_tiles_in_revealed_melds)
-    f4 = len(player_melds)
+    f3 = player_is_open_hand
+    f4 = num_bonus_tiles_in_revealed_melds
+    f5 = num_revealed_melds
+    f6 = discarded_tiles_34_array
+    f7 = revealed_melded_tiles_34_array
 #    f2 = num_revealed_melds
 #    f3 = num_discarded_tiles
 #    f4 = table_turns
@@ -592,7 +598,7 @@ def gen_scores_features(table_count_of_honba_sticks,
 #    f10 = table_revealed_tiles
 #    f11 = changed_tiles_34_array
 
-    return f1, f2, f3, f4#, f5, f6, f7, f8, f9, f10, f11
+    return f1, f2, f3, f4, f5, f6, f7#, f8, f9, f10, f11
 
 
 def gen_is_waiting_targets(player_winning_tiles):
@@ -609,7 +615,10 @@ def gen_waiting_tiles_targets(player_winning_tiles):
     return waiting_tiles
 
 def gen_scores_targets(score_str):
-    return float(score_str)
+    """return log(score) as in the literature
+    """
+    score = float(score_str)
+    return np.log(-score)
 
     
 """
@@ -817,20 +826,23 @@ def train_waiting_tiles_partial_fit(tile=1, load_classifier=False, save_classifi
         
     return classifier, avg_accuracy_scores, avg_auc_scores
 
-def train_scores_partial_fit(load_classifier=False, save_classifier=False, 
-                        full_dir = "data/scores/full_for_partial_fit"):
+def train_scores_partial_fit(load_classifier=False, save_classifier=False):
     """
     Linear regression model for score prediction.
     
     tile: int (0-33). the tile number we want to train, i.e., our target label
     """
-    
+    full_dir = abs_data_path+"/train_model/data/scores/full_for_partial_fit"
     dir_names = os.listdir(full_dir)
-#    classifier = MLPClassifier(verbose=True, 
-#                               learning_rate_init=0.001,
-#                               batch_size=2000)
-    classifier = SGDRegressor(verbose=True,
-                               loss="squared_loss")
+    hidden_layers = (300,)*10
+    classifier = MLPRegressor(verbose=True, 
+                              hidden_layer_sizes=hidden_layers,
+                               learning_rate_init=0.001,
+                               batch_size="auto")
+#    classifier = SGDRegressor(verbose=True,
+#                               loss="squared_loss")
+
+    scaler = StandardScaler(with_mean=False)
     
     # get full target vector
     for dn in dir_names:
@@ -868,10 +880,12 @@ def train_scores_partial_fit(load_classifier=False, save_classifier=False,
         #y_all = np.array(target_all.T.todense()).ravel()
         
         #print(X.shape, y.shape)
+        scaler.partial_fit(X)
+        X = scaler.transform(X)
         classifier.partial_fit(X, y)
         
-        features_path="data/scores/test/scores_sparse_features.npz"
-        target_path="data/scores/test/scores_sparse_targets.npz"
+        features_path = abs_data_path+"/train_model/data/scores/test/scores_sparse_features.npz"
+        target_path = abs_data_path+"/train_model/data/scores/test/scores_sparse_targets.npz"
         
         # try to load testing data
         try:
@@ -884,14 +898,15 @@ def train_scores_partial_fit(load_classifier=False, save_classifier=False,
             
         mse_score = validate_regressor(clf=classifier,
                                        sparse_features=sparse_features,
-                                       sparse_target=sparse_target)
+                                       sparse_target=sparse_target,
+                                       scaler=scaler)
         avg_mse_scores.append(mse_score)
         
         print("--------------------------------")
     
     if save_classifier:
         classifier_name = "scores.sav"
-        pickle.dump(classifier, open("trained_classifiers/"+classifier_name, 'wb'))
+        pickle.dump(classifier, open(abs_data_path+"/train_model/trained_models/"+classifier_name, 'wb'))
         
     return classifier, avg_mse_scores
 
@@ -904,12 +919,12 @@ def validate_classifier(clf, sparse_features, sparse_target):
     
     auc_scores = []
     accuracy_scores = []
+    
     for i in range(1):
         #print("random_state is ", i,", and accuracy metrics are:")
         #X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1, random_state=i) 
         
         # ADD: ravel to avoid warning  
-        
         
         y_pred = clf.predict(X_test)
         accuracy_score = metrics.accuracy_score(y_test, y_pred)
@@ -959,14 +974,16 @@ def validate_classifier(clf, sparse_features, sparse_target):
         return -1, -1
 
 
-def validate_regressor(clf, sparse_features, sparse_target):
+def validate_regressor(clf, sparse_features, sparse_target, scaler):
     
     X_test = sparse_features #[0:600000,:]
     y_test = sparse_target.T #[0:600000,:] # just forgot to make the dimension consistent
     y_test = np.array(y_test.todense()).ravel()
     
     mse_scores = []
-    for i in range(1):   
+    for i in range(1): 
+        X_test = scaler.transform(X_test)
+        #print(X_test[1:4,:].todense(),"!!!")
         y_pred = clf.predict(X_test)
         mse_score = metrics.mean_squared_error(y_test, y_pred)
         mse_scores.append(mse_score)
@@ -1130,9 +1147,13 @@ def waiting_tiles_data_preprocessing():
         n += 1
         
         print("-------------------------\n")
- 
+
+def scores_data_preprocessing_test():
+    debuglogs = os.listdir(abs_data_path+"/debuglogs/")
+    print(debuglogs)
+    
 def scores_data_preprocessing():
-    debuglogs = os.listdir("../debuglogs/")
+    debuglogs = os.listdir(abs_data_path+"/debuglogs/")
     debuglogs_cp = debuglogs[:]
     for debuglog in debuglogs:
         if "testscores" not in debuglog:
@@ -1150,20 +1171,20 @@ def scores_data_preprocessing():
         print(debuglog_name)
         
         # remove files in chunk and full
-        directory = "data/scores/chunk/"
+        directory = abs_data_path+"/train_model/data/scores/chunk/"
         files_in_chunk = os.listdir(directory)
         #print("chunk before remove:{}".format(files_in_chunk))
         for f in files_in_chunk:
             os.remove(directory+f)
-        files_in_chunk = os.listdir("data/scores/chunk/")
+        files_in_chunk = os.listdir(abs_data_path+"/train_model/data/scores/chunk/")
         #print("chunk after remove:{}".format(files_in_chunk))
 
-        directory = "data/scores/full/"
+        directory = abs_data_path+"/train_model/data/scores/full/"
         files_in_full = os.listdir(directory)
         #print("chunk before remove:{}".format(files_in_chunk))
         for f in files_in_full:
             os.remove(directory+f)
-        files_in_full = os.listdir("data/scores/full/")
+        files_in_full = os.listdir(abs_data_path+"/train_model/data/scores/full/")
         #print("chunk after remove:{}".format(files_in_chunk))
         
         if files_in_chunk:
@@ -1180,17 +1201,17 @@ def scores_data_preprocessing():
         print("Finished load and process: {:.2f} seconds".format(toc-tic))
         
         tic = time.time()
-        targets, features = load_and_process_scores_sparse_data(dir_path="data/scores/chunk/")
-        save_sparse_csr("data/scores/full/scores_sparse_features", features)
-        save_sparse_csr("data/scores/full/scores_sparse_targets", targets)
+        targets, features = load_and_process_scores_sparse_data(dir_path=abs_data_path+"/train_model/data/scores/chunk/")
+        save_sparse_csr(abs_data_path+"/train_model/data/scores/full/scores_sparse_features", features)
+        save_sparse_csr(abs_data_path+"/train_model/data/scores/full/scores_sparse_targets", targets)
         toc = time.time()
         print("Finished load sparse: {:.2f} seconds".format(toc-tic))
         
         
         # make a new dir to store the aggregated feature and target data
-        os.mkdir("data/scores/full_for_partial_fit/full_{}".format(n))
+        os.mkdir(abs_data_path+"/train_model/data/scores/full_for_partial_fit/full_{}".format(n))
         # copy the data to the folder
-        copytree("data/scores/full", "data/scores/full_for_partial_fit/full_{}/".format(n))
+        copytree(abs_data_path+"/train_model/data/scores/full", abs_data_path+"/train_model/data/scores/full_for_partial_fit/full_{}/".format(n))
         n += 1
         
         print("-------------------------\n")
@@ -1284,6 +1305,7 @@ class WaitingTilesEvaluation(object):
 if __name__=="__main__":
 
     tic = time.time()
+    print(abs_path)
     
 #    is_waiting_data_preprocessing()
 #    waiting_tiles_data_preprocessing() 
@@ -1306,8 +1328,8 @@ if __name__=="__main__":
 #                               "AUC_waiting_tile_{}.png".format(tile))
 #                    )
     
-    clf, avg_mse_scores = train_scores_partial_fit(load_classifier=False, save_classifier=True)
-    
+#    clf, avg_mse_scores = train_scores_partial_fit(load_classifier=False, save_classifier=True)
+#    
 #    waiting_tiles_evaluation = WaitingTilesEvaluation()
 #    evaluation = waiting_tiles_evaluation.accuracy_of_prediction()
 #    print("Evaluation value: {}".format(evaluation))
