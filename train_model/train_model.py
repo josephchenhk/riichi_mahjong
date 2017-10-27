@@ -1228,8 +1228,8 @@ def scores_data_preprocessing():
 class WaitingTilesEvaluation(object):
     
     def __init__(self):        
-        features_path="data/waiting_tiles/test/waiting_tiles_sparse_features.npz"
-        target_path="data/waiting_tiles/test/waiting_tiles_sparse_targets.npz"
+        features_path=abs_data_path+"/train_model/data/waiting_tiles/test/waiting_tiles_sparse_features.npz"
+        target_path=abs_data_path+"/train_model/data/waiting_tiles/test/waiting_tiles_sparse_targets.npz"
             
         # try to load data for testing purpose
         try:
@@ -1246,7 +1246,7 @@ class WaitingTilesEvaluation(object):
         prob = []
         for tile in hand:
             target = opponent_waiting_tiles[tile]        
-            clf = pickle.load(open("trained_classifiers/waiting_tile_{}.sav".format(tile), "rb"))
+            clf = pickle.load(open(abs_data_path+"/train_model/trained_models/waiting_tile_{}.sav".format(tile), "rb"))
             prob_winning_tile = clf.predict_proba(opponent_info)[0][1]
             #predict = clf.predict(opponent_info)
             #print(tile, prob.shape, clf.classes_)
