@@ -832,7 +832,7 @@ def train_waiting_tiles_partial_fit(tile=1, load_classifier=False, save_classifi
     
     if save_classifier:
         classifier_name = "waiting_tile_{}.sav".format(tile)
-        pickle.dump(classifier, open("trained_classifiers/"+classifier_name, 'wb'))
+        pickle.dump(classifier, open(abs_data_path+"/train_model/trained_models/"+classifier_name, 'wb'))
         
     return classifier, avg_accuracy_scores, avg_auc_scores
 
