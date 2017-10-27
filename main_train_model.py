@@ -7,6 +7,7 @@ Created on Wed Oct 25 12:03:04 2017
 import time
 
 from train_model.train_model import scores_data_preprocessing
+from train_model.train_model import waiting_tiles_data_preprocessing
 from train_model.train_model import train_scores_partial_fit
 
 if __name__=="__main__":
@@ -15,7 +16,7 @@ if __name__=="__main__":
     
     
 #    is_waiting_data_preprocessing()
-#    waiting_tiles_data_preprocessing() 
+    waiting_tiles_data_preprocessing() 
 #    scores_data_preprocessing() 
     
 #    clf, avg_accuracy_scores, avg_auc_scores = train_is_waiting_partial_fit(load_classifier=False, save_classifier=True)
@@ -35,8 +36,8 @@ if __name__=="__main__":
 #                               "AUC_waiting_tile_{}.png".format(tile))
 #                    )
     
-    clf, avg_mse_scores = train_scores_partial_fit(load_classifier=False, save_classifier=True)
-    
+#    clf, avg_mse_scores = train_scores_partial_fit(load_classifier=False, save_classifier=True)
+#    
 #    waiting_tiles_evaluation = WaitingTilesEvaluation()
 #    evaluation = waiting_tiles_evaluation.accuracy_of_prediction()
 #    print("Evaluation value: {}".format(evaluation))
