@@ -17,7 +17,6 @@ import ast
 from functools import reduce
 import shutil
 import random
-
 from sklearn.linear_model import LogisticRegression
 from sklearn.linear_model import SGDClassifier
 from sklearn.linear_model import SGDRegressor
@@ -31,12 +30,11 @@ from sklearn.preprocessing import OneHotEncoder
 from sklearn.preprocessing import LabelBinarizer
 from sklearn.feature_extraction import DictVectorizer
 from sklearn.preprocessing import StandardScaler
-
 import matplotlib.pyplot as plt
 
 from train_model.utils.features import Features 
 from train_model.utils.tile import TilesConverter 
-
+from train_model.utils.features_of_score import FeaturesOfScore
 from config.config import abs_data_path
 
 
@@ -152,10 +150,10 @@ def load_and_process_waiting_tiles_data(debuglog_name="", num_lines=None, chunk_
     tic = time.time()
     target_list = []
     feature_list = []
-    with open("../debuglogs/{}.debuglog".format(debuglog_name)) as f:
+    with open(abs_data_path+"/debuglogs/{}.debuglog".format(debuglog_name)) as f:
         m = 1
         
-        existing_files = sorted([int(name.split("_")[-1].split(".")[0]) for name in os.listdir("data/waiting_tiles/chunk")])
+        existing_files = sorted([int(name.split("_")[-1].split(".")[0]) for name in os.listdir(abs_data_path+"/train_model/data/waiting_tiles/chunk")])
         if existing_files:
             k = existing_files[-1] + 1
         else:
@@ -226,11 +224,11 @@ def load_and_process_waiting_tiles_data(debuglog_name="", num_lines=None, chunk_
                     print(k)
                     m = 0
                     sparse_features = sp.sparse.csr_matrix(feature_list)
-                    save_sparse_csr("data/waiting_tiles/chunk/waiting_tiles_sparse_feature_{}".format(k), sparse_features) 
+                    save_sparse_csr(abs_data_path+"/train_model/data/waiting_tiles/chunk/waiting_tiles_sparse_feature_{}".format(k), sparse_features) 
                     feature_list = []
                     
                     sparse_targets = sp.sparse.csr_matrix(target_list)
-                    save_sparse_csr("data/waiting_tiles/chunk/waiting_tiles_sparse_target_{}".format(k), sparse_targets) 
+                    save_sparse_csr(abs_data_path+"/train_model/data/waiting_tiles/chunk/waiting_tiles_sparse_target_{}".format(k), sparse_targets) 
                     target_list = []
                     
                     k += 1
@@ -244,12 +242,12 @@ def load_and_process_waiting_tiles_data(debuglog_name="", num_lines=None, chunk_
     if target_list:
         sparse_targets = sp.sparse.csr_matrix(target_list)
         print("sparse_target size: {}".format(sparse_targets.shape))
-        save_sparse_csr("data/waiting_tiles/chunk/waiting_tiles_sparse_target_{}".format(k), sparse_targets) 
+        save_sparse_csr(abs_data_path+"/train_model/data/waiting_tiles/chunk/waiting_tiles_sparse_target_{}".format(k), sparse_targets) 
         
     if feature_list:
         sparse_features = sp.sparse.csr_matrix(feature_list)
         print("sparse_features size: {}".format(sparse_features.shape))
-        save_sparse_csr("data/waiting_tiles/chunk/waiting_tiles_sparse_feature_{}".format(k), sparse_features) 
+        save_sparse_csr(abs_data_path+"/train_model/data/waiting_tiles/chunk/waiting_tiles_sparse_feature_{}".format(k), sparse_features) 
     
     toc = time.time()
     print("Data has been loaded successfully (Time: {:.2f} seconds). Wait for parsing...".format(toc-tic))
@@ -324,13 +322,13 @@ def load_and_process_scores_data(debuglog_name="", num_lines=None, chunk_size=10
                                                         player_seat,
                                                         player_uma)
                 #f3, f4, f5, f6, f7, f8, f9, f10, f11 = features
-                f1, f2, f3, f4, f5, f6, f7 = features 
+                f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13 = features 
                 #print(n, [len([f1]), len([f2]), len([f3]), len([f4]), len([f5]), len(f6), len(f7), len(f8), len(f9), len(f10), len(f11)])
                 target = gen_scores_targets(d3) # scores lost to the winner
                 target_list.append(target)
                 
                 #feature_list.append([f1]+[f2]+[f3]+[f4]+[f5]+f6+f7+f8+f9+f10+f11)
-                feature_list.append([f1]+[f2]+[f3]+[f4]+[f5]+f6+f7)
+                feature_list.append([f1]+[f2]+[f3]+[f4]+[f5]+f6+f7+[f8]+[f9]+[f10]+[f11]+[f12]+[f13])
                 
                 if m==chunk_size:
                     print(k)
@@ -580,13 +578,26 @@ def gen_scores_features(table_count_of_honba_sticks,
     
     num_bonus_tiles_in_revealed_melds = len(bonus_tiles_in_revealed_melds)
 
+    ft = FeaturesOfScore(discarded_tiles_34_array,
+                         revealed_melded_tiles_34_array,
+                         table_revealed_tiles)
+
     f1 = player_in_riichi
     f2 = player_is_dealer
     f3 = player_is_open_hand
     f4 = num_bonus_tiles_in_revealed_melds
     f5 = num_revealed_melds
+    
     f6 = discarded_tiles_34_array
     f7 = revealed_melded_tiles_34_array
+    
+    f8 = ft.is_discards_all_simples()
+    f9 = ft.num_revealed_melds_of_wind_tiles()
+    f10 = ft.num_revealed_melds_of_dragon_tiles()
+    f11 = ft.can_hands_be_all_pons()
+    f12 = ft.can_hands_be_flush()
+    f13 = ft.can_hands_be_all_simples()
+    
 #    f2 = num_revealed_melds
 #    f3 = num_discarded_tiles
 #    f4 = table_turns
@@ -598,7 +609,7 @@ def gen_scores_features(table_count_of_honba_sticks,
 #    f10 = table_revealed_tiles
 #    f11 = changed_tiles_34_array
 
-    return f1, f2, f3, f4, f5, f6, f7#, f8, f9, f10, f11
+    return f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13
 
 
 def gen_is_waiting_targets(player_winning_tiles):
@@ -744,14 +755,13 @@ def train_is_waiting_partial_fit(load_classifier=False, save_classifier=False,
         
     return classifier, avg_accuracy_scores, avg_auc_scores
 
-def train_waiting_tiles_partial_fit(tile=1, load_classifier=False, save_classifier=False, 
-                        full_dir = "data/waiting_tiles/full_for_partial_fit"):
+def train_waiting_tiles_partial_fit(tile=1, load_classifier=False, save_classifier=False):
     """
     Logistic regression model for waiting prediction.
     
     tile: int (0-33). the tile number we want to train, i.e., our target label
     """
-    
+    full_dir = abs_data_path+"/train_model/data/waiting_tiles/full_for_partial_fit"
     dir_names = os.listdir(full_dir)
 #    classifier = MLPClassifier(verbose=True, 
 #                               learning_rate_init=0.001,
@@ -768,7 +778,7 @@ def train_waiting_tiles_partial_fit(tile=1, load_classifier=False, save_classifi
         try:
             target = load_sparse_csr(directory + "waiting_tiles_sparse_targets.npz")
         except:
-            raise("The training data must be ready at data/waiting_tiles/full/ before training model.")
+            raise("The training data must be ready at {}/train_model/data/waiting_tiles/full/ before training model.".format(full_dir))
         # concatenate the target vector to get full vector
         if "target_all" in locals():
             target_all = sp.sparse.hstack((target_all, target[:,tile]))
@@ -800,8 +810,8 @@ def train_waiting_tiles_partial_fit(tile=1, load_classifier=False, save_classifi
         
         classifier.partial_fit(X, y, np.unique(y_all))
         
-        features_path="data/waiting_tiles/test/waiting_tiles_sparse_features.npz"
-        target_path="data/waiting_tiles/test/waiting_tiles_sparse_targets.npz"
+        features_path = abs_data_path+"/train_model/data/waiting_tiles/test/waiting_tiles_sparse_features.npz"
+        target_path = abs_data_path+"/train_model/data/waiting_tiles/test/waiting_tiles_sparse_targets.npz"
         
         # try to load data
         try:
@@ -834,7 +844,7 @@ def train_scores_partial_fit(load_classifier=False, save_classifier=False):
     """
     full_dir = abs_data_path+"/train_model/data/scores/full_for_partial_fit"
     dir_names = os.listdir(full_dir)
-    hidden_layers = (300,)*10
+    hidden_layers = (100,)*8
     classifier = MLPRegressor(verbose=True, 
                               hidden_layer_sizes=hidden_layers,
                                learning_rate_init=0.001,
@@ -1086,12 +1096,13 @@ def is_waiting_data_preprocessing():
         print("-------------------------\n")
         
 def waiting_tiles_data_preprocessing():
-    debuglogs = os.listdir("../debuglogs/")
+    debuglogs = os.listdir(abs_data_path+"/debuglogs/")
+    debuglogs_cp = debuglogs[:]
     for debuglog in debuglogs:
-        if "test" not in debuglog:
-            debuglogs.remove(debuglog)
-            
-    log_index = [int(d) for d in [log.split("_")[0][4:] for log in debuglogs]]
+        if "testwaiting" not in debuglog:
+            debuglogs_cp.remove(debuglog)
+    debuglogs = debuglogs_cp      
+    log_index = [int(d) for d in [log.split("_")[0][11:] for log in debuglogs]]
     
     for n in range(1,len(debuglogs)+1):
         log_idx = log_index.index(n)
@@ -1103,20 +1114,20 @@ def waiting_tiles_data_preprocessing():
         print(debuglog_name)
         
         # remove files in chunk and full
-        directory = "data/waiting_tiles/chunk/"
+        directory = abs_data_path+"/train_model/data/waiting_tiles/chunk/"
         files_in_chunk = os.listdir(directory)
         #print("chunk before remove:{}".format(files_in_chunk))
         for f in files_in_chunk:
             os.remove(directory+f)
-        files_in_chunk = os.listdir("data/waiting_tiles/chunk/")
+        files_in_chunk = os.listdir(abs_data_path+"/train_model/data/waiting_tiles/chunk/")
         #print("chunk after remove:{}".format(files_in_chunk))
 
-        directory = "data/waiting_tiles/full/"
+        directory = abs_data_path+"/train_model/data/waiting_tiles/full/"
         files_in_full = os.listdir(directory)
         #print("chunk before remove:{}".format(files_in_chunk))
         for f in files_in_full:
             os.remove(directory+f)
-        files_in_full = os.listdir("data/waiting_tiles/full/")
+        files_in_full = os.listdir(abs_data_path+"/train_model/data/waiting_tiles/full/")
         #print("chunk after remove:{}".format(files_in_chunk))
         
         if files_in_chunk:
@@ -1133,24 +1144,21 @@ def waiting_tiles_data_preprocessing():
         print("Finished load and process: {:.2f} seconds".format(toc-tic))
         
         tic = time.time()
-        targets, features = load_and_process_waiting_tiles_sparse_data(dir_path="data/waiting_tiles/chunk/")
-        save_sparse_csr("data/waiting_tiles/full/waiting_tiles_sparse_features", features)
-        save_sparse_csr("data/waiting_tiles/full/waiting_tiles_sparse_targets", targets)
+        targets, features = load_and_process_waiting_tiles_sparse_data(dir_path=abs_data_path+"/train_model/data/waiting_tiles/chunk/")
+        save_sparse_csr(abs_data_path+"/train_model/data/waiting_tiles/full/waiting_tiles_sparse_features", features)
+        save_sparse_csr(abs_data_path+"/train_model/data/waiting_tiles/full/waiting_tiles_sparse_targets", targets)
         toc = time.time()
         print("Finished load sparse: {:.2f} seconds".format(toc-tic))
         
         
         # make a new dir to store the aggregated feature and target data
-        os.mkdir("data/waiting_tiles/full_for_partial_fit/full_{}".format(n))
+        os.mkdir(abs_data_path+"/train_model/data/waiting_tiles/full_for_partial_fit/full_{}".format(n))
         # copy the data to the folder
-        copytree("data/waiting_tiles/full", "data/waiting_tiles/full_for_partial_fit/full_{}/".format(n))
+        copytree(abs_data_path+"/train_model/data/waiting_tiles/full", abs_data_path+"/train_model/data/waiting_tiles/full_for_partial_fit/full_{}/".format(n))
         n += 1
         
         print("-------------------------\n")
 
-def scores_data_preprocessing_test():
-    debuglogs = os.listdir(abs_data_path+"/debuglogs/")
-    print(debuglogs)
     
 def scores_data_preprocessing():
     debuglogs = os.listdir(abs_data_path+"/debuglogs/")
