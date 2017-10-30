@@ -49,10 +49,10 @@ def load_and_process_is_waiting_data(debuglog_name="", num_lines=None, chunk_siz
     tic = time.time()
     target_list = []
     feature_list = []
-    with open("../debuglogs/{}.debuglog".format(debuglog_name)) as f:
+    with open(abs_data_path+"/debuglogs/{}.debuglog".format(debuglog_name)) as f:
         m = 1
         
-        existing_files = sorted([int(name.split("_")[-1].split(".")[0]) for name in os.listdir("data/is_waiting/chunk")])
+        existing_files = sorted([int(name.split("_")[-1].split(".")[0]) for name in os.listdir(abs_data_path+"/train_model/data/is_waiting/chunk")])
         if existing_files:
             k = existing_files[-1] + 1
         else:
@@ -122,7 +122,7 @@ def load_and_process_is_waiting_data(debuglog_name="", num_lines=None, chunk_siz
                     print(k)
                     m = 0
                     sparse_features = sp.sparse.csr_matrix(feature_list)
-                    save_sparse_csr("data/is_waiting/chunk/is_waiting_sparse_feature_{}".format(k), sparse_features) 
+                    save_sparse_csr(abs_data_path+"/train_model/data/is_waiting/chunk/is_waiting_sparse_feature_{}".format(k), sparse_features) 
                     feature_list = []
                     k += 1
 
@@ -135,11 +135,11 @@ def load_and_process_is_waiting_data(debuglog_name="", num_lines=None, chunk_siz
     sparse_targets = sp.sparse.csr_matrix(target_list)
     #sparse_targets = sparse_targets.T
     print("sparse_target size: {}".format(sparse_targets.shape))
-    save_sparse_csr("data/is_waiting/full/is_waiting_sparse_target", sparse_targets) 
+    save_sparse_csr(abs_data_path+"/train_model/data/is_waiting/full/is_waiting_sparse_target", sparse_targets) 
     
     if feature_list:
         sparse_features = sp.sparse.csr_matrix(feature_list)
-        save_sparse_csr("data/is_waiting/chunk/is_waiting_sparse_feature_{}".format(k), sparse_features) 
+        save_sparse_csr(abs_data_path+"/train_model/data/is_waiting/chunk/is_waiting_sparse_feature_{}".format(k), sparse_features) 
     
     toc = time.time()
     print("Data has been loaded successfully (Time: {:.2f} seconds). Wait for parsing...".format(toc-tic))
@@ -1034,12 +1034,13 @@ def plot_scores(avg_accuracy_scores, avg_auc_scores, save_path, save_name):
     
 
 def is_waiting_data_preprocessing():
-    debuglogs = os.listdir("../debuglogs/")
+    debuglogs = os.listdir(abs_data_path+"/debuglogs/")
+    debuglogs_cp = debuglogs[:]
     for debuglog in debuglogs:
-        if "test" not in debuglog:
-            debuglogs.remove(debuglog)
-            
-    log_index = [int(d) for d in [log.split("_")[0][4:] for log in debuglogs]]
+        if "testwaiting" not in debuglog:
+            debuglogs_cp.remove(debuglog)
+    debuglogs = debuglogs_cp      
+    log_index = [int(d) for d in [log.split("_")[0][11:] for log in debuglogs]]
     
     for n in range(1,len(debuglogs)+1):
         log_idx = log_index.index(n)
@@ -1051,20 +1052,20 @@ def is_waiting_data_preprocessing():
         print(debuglog_name)
         
         # remove files in chunk and full
-        directory = "data/is_waiting/chunk/"
+        directory = abs_data_path+"/train_model/data/is_waiting/chunk/"
         files_in_chunk = os.listdir(directory)
         #print("chunk before remove:{}".format(files_in_chunk))
         for f in files_in_chunk:
             os.remove(directory+f)
-        files_in_chunk = os.listdir("data/is_waiting/chunk/")
+        files_in_chunk = os.listdir(abs_data_path+"/train_model/data/is_waiting/chunk/")
         #print("chunk after remove:{}".format(files_in_chunk))
 
-        directory = "data/is_waiting/full/"
+        directory = abs_data_path+"/train_model/data/is_waiting/full/"
         files_in_full = os.listdir(directory)
         #print("chunk before remove:{}".format(files_in_chunk))
         for f in files_in_full:
             os.remove(directory+f)
-        files_in_full = os.listdir("data/is_waiting/full/")
+        files_in_full = os.listdir(abs_data_path+"/train_model/data/is_waiting/full/")
         #print("chunk after remove:{}".format(files_in_chunk))
         
         if files_in_chunk:
@@ -1081,16 +1082,16 @@ def is_waiting_data_preprocessing():
         print("Finished load and process: {:.2f} seconds".format(toc-tic))
         
         tic = time.time()
-        features = load_and_process_is_waiting_sparse_data(dir_path="data/is_waiting/chunk/")
-        save_sparse_csr("data/is_waiting/full/is_waiting_sparse_features", features)
+        features = load_and_process_is_waiting_sparse_data(dir_path=abs_data_path+"/train_model/data/is_waiting/chunk/")
+        save_sparse_csr(abs_data_path+"/train_model/data/is_waiting/full/is_waiting_sparse_features", features)
         toc = time.time()
         print("Finished load sparse: {:.2f} seconds".format(toc-tic))
         
         
         # make a new dir to store the aggregated feature and target data
-        os.mkdir("data/is_waiting/full_for_partial_fit/full_{}".format(n))
+        os.mkdir(abs_data_path+"/train_model/data/is_waiting/full_for_partial_fit/full_{}".format(n))
         # copy the data to the folder
-        copytree("data/is_waiting/full", "data/is_waiting/full_for_partial_fit/full_{}/".format(n))
+        copytree(abs_data_path+"/train_model/data/is_waiting/full", abs_data_path+"/train_model/data/is_waiting/full_for_partial_fit/full_{}/".format(n))
         n += 1
         
         print("-------------------------\n")

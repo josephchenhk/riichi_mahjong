@@ -8,6 +8,7 @@ import time
 
 from train_model.train_model import scores_data_preprocessing
 from train_model.train_model import waiting_tiles_data_preprocessing
+from train_model.train_model import is_waiting_data_preprocessing
 from train_model.train_model import train_scores_partial_fit
 from train_model.train_model import train_waiting_tiles_partial_fit
 from train_model.train_model import plot_scores
@@ -19,7 +20,7 @@ if __name__=="__main__":
     tic = time.time()
     
     
-#    is_waiting_data_preprocessing()
+    is_waiting_data_preprocessing()
 #    waiting_tiles_data_preprocessing() 
 #    scores_data_preprocessing() 
     
@@ -40,9 +41,9 @@ if __name__=="__main__":
 #                               "AUC_waiting_tile_{}.png".format(tile))
 #                    )
     
-    waiting_tiles_evaluation = WaitingTilesEvaluation()
-    evaluation = waiting_tiles_evaluation.accuracy_of_prediction()
-    print("Evaluation value: {}".format(evaluation))
+#    waiting_tiles_evaluation = WaitingTilesEvaluation()
+#    evaluation = waiting_tiles_evaluation.accuracy_of_prediction()
+#    print("Evaluation value: {}".format(evaluation))
 
 #    clf, avg_mse_scores = train_scores_partial_fit(load_classifier=False, save_classifier=True)
 
