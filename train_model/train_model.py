@@ -674,19 +674,19 @@ def load_arr(filename):
     return np.load(filename)
 
 
-def train_is_waiting_partial_fit(load_classifier=False, save_classifier=False, 
-                        classifier_name = "is_waiting.sav",
-                        full_dir = "data/is_waiting/full_for_partial_fit"):
+def train_is_waiting_partial_fit(load_classifier=False, save_classifier=False):
     """
     Logistic regression model for waiting prediction.
     
     tile: int (0-33). the tile number we want to train, i.e., our target label
     """
-    
+    full_dir = abs_data_path+"/train_model/data/is_waiting/full_for_partial_fit"
     dir_names = os.listdir(full_dir)
     
     # classifier 1: 
+    hidden_layers = (100,)*4
     classifier = MLPClassifier(verbose=True, 
+                               hidden_layer_sizes=hidden_layers,
                                learning_rate_init=0.001,
                                batch_size=2000)
 
@@ -720,7 +720,7 @@ def train_is_waiting_partial_fit(load_classifier=False, save_classifier=False,
             sparse_features = load_sparse_csr(directory + "is_waiting_sparse_features.npz")
             target = load_sparse_csr(directory + "is_waiting_sparse_target.npz")
         except:
-            raise("The training data must be ready at data/is_waiting/full/ before training model.")
+            raise("The training data must be ready at {}/train_model/data/is_waiting/full/ before training model.".format(full_dir))
         
         X = sparse_features #[0:600000,:]
         y = target.T #[0:600000,:] # just forgot to make the dimension consistent
@@ -733,8 +733,8 @@ def train_is_waiting_partial_fit(load_classifier=False, save_classifier=False,
         
         classifier.partial_fit(X, y, np.unique(y_all))
         
-        features_path="data/is_waiting/test/is_waiting_sparse_features.npz"
-        target_path="data/is_waiting/test/is_waiting_sparse_target.npz"
+        features_path = abs_data_path+"/train_model/data/is_waiting/test/is_waiting_sparse_features.npz"
+        target_path = abs_data_path+"/train_model/data/is_waiting/test/is_waiting_sparse_target.npz"
         # try to load data
         try:
             sparse_features = load_sparse_csr(features_path)
@@ -751,7 +751,8 @@ def train_is_waiting_partial_fit(load_classifier=False, save_classifier=False,
         print("--------------------------------")
     
     if save_classifier:
-        pickle.dump(classifier, open("trained_classifiers/"+classifier_name, 'wb'))
+        classifier_name = "is_waiting.sav"
+        pickle.dump(classifier, open(abs_data_path+"/train_model/trained_models/"+classifier_name, 'wb'))
         
     return classifier, avg_accuracy_scores, avg_auc_scores
 
