@@ -8,5 +8,6 @@ import os
 # abs_path is the directory to store data. We don't want the data mess with 
 # our scripts, and therefore put them in a separate directory.
 
-mirror_path = os.path.join(os.getcwd(), "../../../../Projects/riichi_mahjong")
+#mirror_path = os.path.join(os.getcwd(), "../../../../Projects/riichi_mahjong")
+mirror_path = os.path.join(os.getcwd(), "../DATA/riichi_mahjong")
 abs_data_path = os.path.abspath(mirror_path)
