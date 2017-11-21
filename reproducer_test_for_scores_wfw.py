@@ -201,13 +201,20 @@ class TenhouLogReproducer(object):
                 score = scores[fromWho*2+1] 
                 player_seat, features = self.execute_extraction(tag, table)
                 
-                if (who!=fromWho): # tsumo is not a valid sample for our training.                    
-                    if (features is not None) and (player_seat is not None) and (score<0):
-                        # The first element before ";" is table_info, therefor player_info starts
-                        # from index 1, and we put who+1 here.
+#                # tsumo is not a valid sample for our training.
+#                if (who!=fromWho): # not tsumo (lose the score to winner, score<0)                    
+#                    if (features is not None) and (player_seat is not None) and (score<0):
+#                        # The first element before ";" is table_info, therefore player_info starts
+#                        # from index 1, and we put who+1 here.
+#                        self.feature_to_logger(features, who+1, score)
+#                        score = 1
+    
+                # tsumo is a valid sample for our training 
+                if (who==fromWho): # tsumo (win the score, score>0)
+                    if (features is not None) and (player_seat is not None) and (score>0):
                         self.feature_to_logger(features, who+1, score)
-                        score = 1
-                    #print("\n{}\n{}\n".format(tag,table.players[who].tiles))
+                        score = -1
+                   
             else:
                 player_seat, features = self.execute_extraction(tag, table)
                             
@@ -233,16 +240,20 @@ class TenhouLogReproducer(object):
         logger2.info(table_info + ";" + player_info + ";" + str(score))    
         
     def execute_extraction(self, tag, table):
-        if '<D' in tag:
+        """
+        D/E/F/G are for discards
+        T/U/V/W are for draws
+        """
+        if ('<T' in tag) or ('<D' in tag):
             features = self.extract_features.get_scores_features(table)
             return 1, features              
-        if '<E' in tag:
+        if ('<U' in tag) or ('<E' in tag):
             features = self.extract_features.get_scores_features(table)
             return 2, features
-        if '<F' in tag:
+        if ('<V' in tag) or ('<F' in tag):
             features = self.extract_features.get_scores_features(table)
             return 3, features               
-        if '<G' in tag:
+        if ('<W' in tag) or ('<G' in tag):
             features = self.extract_features.get_scores_features(table)
             return 4, features
         return None, None
