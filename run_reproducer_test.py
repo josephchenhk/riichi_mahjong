@@ -19,15 +19,33 @@ if __name__=="__main__":
     tic = time.time()
     print("Start time:{}".format(tic))
     
-    for n,fn in enumerate(mjlog_names[:]): # (mjlog_names[0:30000]):
+    CREATE_NO_WINDOW = 0x08000000
+    
+    for n,fn in enumerate(mjlog_names[:]): # (mjlog_names[0:100]): #
         if "mjlog" not in fn:
             continue
         
         #cmd = "python reproducer_test.py -m ..\..\data\{} -d".format(fn)
         mjlog = os.path.join(abs_data_path, "raw_data", fn)
-        cmd = "python reproducer_test_for_scores.py -m {} -d".format(mjlog) 
         
-        os.system(cmd)
+        # For HS
+        #cmd = "python reproducer_test_for_scores.py -m {} -d".format(mjlog) 
+        
+        # For HS_WFW
+        cmd = "python reproducer_test_for_scores_wfw.py -m {} -d".format(mjlog) 
+
+        #os.system(cmd)
+        p = subprocess.Popen(cmd, shell=False, 
+                             stdout=subprocess.DEVNULL, 
+                             stderr=subprocess.DEVNULL,
+                             creationflags=CREATE_NO_WINDOW)
+        #p = subprocess.Popen(cmd, shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        p.wait()
+        p.terminate()
+        
+        if n%7000==0:
+            print("{} mjlogs completed.".format(n+1))
+        
         #subprocess.call(['python', 'reproducer_test.py', '-m', '..\..\data\{} -d'.format(fn), '-d' ])
     toc = time.time()
     print("End time:{}\nElapsed time:{}".format(toc, toc-tic))
