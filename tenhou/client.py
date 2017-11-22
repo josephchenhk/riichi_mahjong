@@ -37,6 +37,7 @@ class TenhouClient(Client):
         super().__init__()
         self.statistics = Statistics()
         self._socket_mock = socket_mock
+        self._log_link = ''
 
     def connect(self):
         # for reproducer
@@ -195,6 +196,7 @@ class TenhouClient(Client):
 
         logger.info('Game started')
         logger.info('Log: {}'.format(log_link))
+        self._log_link = log_link
         logger.info('Players: {}'.format(self.table.players))
 
         main_player = self.table.player
@@ -499,8 +501,10 @@ class TenhouClient(Client):
 
         if success:
             logger.info('End of the game')
+            logger.info('Log: {}'.format(self._log_link))
         else:
             logger.error('Game was ended without success')
+            logger.info('Log: {}'.format(self._log_link))
 
     def _send_message(self, message):
         # tenhou requires an empty byte in the end of each sending message

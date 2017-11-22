@@ -259,7 +259,11 @@ class Player(PlayerInterface):
                 from mahjong.ai.main import MainAI
         else:
             if settings.ENABLE_AI:
-                from mahjong.ai.main import MainAI
+                # from mahjong.ai.main import MainAI
+                
+                # TODO: We switch to opponent model now. Note that this model
+                # is still under development. 
+                from mahjong.ai.opponent_model import MainAI
             else:
                 from mahjong.ai.random import MainAI
 
