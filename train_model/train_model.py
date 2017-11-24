@@ -362,7 +362,115 @@ def load_and_process_scores_data(debuglog_name="", num_lines=None, chunk_size=10
     toc = time.time()
     print("Data `Scores` has been loaded successfully (Time: {:.2f} seconds). Wait for parsing...".format(toc-tic))
  
+def load_and_process_wfw_scores_data(debuglog_name="", num_lines=None, chunk_size=1000):
+    
+    tic = time.time()
+    target_list = []
+    feature_list = []
+    with open(abs_data_path+"/debuglogs/{}.debuglog".format(debuglog_name)) as f:
+        m = 1
+        
+        existing_files = sorted([int(name.split("_")[-1].split(".")[0]) for name in os.listdir(abs_data_path+"/train_model/data/wfw_scores/chunk")])
+        if existing_files:
+            k = existing_files[-1] + 1
+        else:
+            k = 1
+            
+        for n, line in enumerate(f):
+            if n<num_lines:
+                d1, d2, d3 = line.replace("\n","").split(";")
+                #d1 = d1.replace(",,",",-1,").replace("True","1").replace("False","0")
+                #d2 = d2.replace(",,",",-1,").replace("True","1").replace("False","0")
 
+                (table_count_of_honba_sticks,
+                 table_count_of_remaining_tiles,
+                 table_count_of_riichi_sticks,
+                 table_round_number,
+                 table_round_wind,
+                 table_turns,
+                 table_dealer_seat,
+                 table_dora_indicators,
+                 table_dora_tiles,
+                 table_revealed_tiles) = ast.literal_eval(d1)
+                
+                (player_winning_tiles,                   
+                 player_discarded_tiles, 
+                 player_dealer_seat,
+                 player_in_riichi,
+                 player_is_dealer,
+                 player_is_open_hand,              
+                 player_melds,                
+                 player_name,
+                 player_position,
+                 player_rank,
+                 player_scores,
+                 player_seat,
+                 player_uma) = ast.literal_eval(d2)
+    
+                
+                features = gen_wfw_scores_features(table_count_of_honba_sticks,
+                                                        table_count_of_remaining_tiles,
+                                                        table_count_of_riichi_sticks,
+                                                        table_round_number,
+                                                        table_round_wind,
+                                                        table_turns,
+                                                        table_dealer_seat,
+                                                        table_dora_indicators,
+                                                        table_dora_tiles,
+                                                        table_revealed_tiles,
+                                                        player_winning_tiles,                   
+                                                        player_discarded_tiles, 
+                                                        player_dealer_seat,
+                                                        player_in_riichi,
+                                                        player_is_dealer,
+                                                        player_is_open_hand,              
+                                                        player_melds,                
+                                                        player_name,
+                                                        player_position,
+                                                        player_rank,
+                                                        player_scores,
+                                                        player_seat,
+                                                        player_uma)
+                #f3, f4, f5, f6, f7, f8, f9, f10, f11 = features
+                f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13 = features 
+                #print(n, [len([f1]), len([f2]), len([f3]), len([f4]), len([f5]), len(f6), len(f7), len(f8), len(f9), len(f10), len(f11)])
+                target = gen_wfw_scores_targets(d3) # scores lost to the winner
+                target_list.append(target)
+                
+                #feature_list.append([f1]+[f2]+[f3]+[f4]+[f5]+f6+f7+f8+f9+f10+f11)
+                feature_list.append([f1]+[f2]+[f3]+[f4]+[f5]+f6+f7+[f8]+[f9]+[f10]+[f11]+[f12]+[f13])
+                
+                if m==chunk_size:
+                    print(k)
+                    m = 0
+                    sparse_features = sp.sparse.csr_matrix(feature_list)
+                    save_sparse_csr(abs_data_path+"/train_model/data/wfw_scores/chunk/scores_sparse_feature_{}".format(k), sparse_features) 
+                    feature_list = []
+                    
+                    sparse_targets = sp.sparse.csr_matrix(target_list)
+                    save_sparse_csr(abs_data_path+"/train_model/data/wfw_scores/chunk/scores_sparse_target_{}".format(k), sparse_targets) 
+                    target_list = []
+                    
+                    k += 1             
+            else:
+                break
+            
+            m += 1
+    
+    if target_list:
+        sparse_targets = sp.sparse.csr_matrix(target_list)
+        print("sparse_target size: {}".format(sparse_targets.shape))
+        save_sparse_csr(abs_data_path+"/train_model/data/wfw_scores/chunk/scores_sparse_target_{}".format(k), sparse_targets) 
+        
+    if feature_list:
+        sparse_features = sp.sparse.csr_matrix(feature_list)
+        print("sparse_features size: {}".format(sparse_features.shape))
+        save_sparse_csr(abs_data_path+"/train_model/data/wfw_scores/chunk/scores_sparse_feature_{}".format(k), sparse_features) 
+    
+    toc = time.time()
+    print("Data `Scores` has been loaded successfully (Time: {:.2f} seconds). Wait for parsing...".format(toc-tic))
+ 
+    
 def load_and_process_is_waiting_sparse_data(dir_path="data/"):
     
     dir_names = os.listdir(dir_path)
@@ -424,6 +532,10 @@ def load_and_process_scores_sparse_data(dir_path="data/"):
     print("sparse_feature size: {}".format(features.shape))
     return targets, features
 
+
+def load_and_process_wfw_scores_sparse_data(dir_path="data/"):  
+    # This function should be the same as load_and_process_scores_sparse_data(dir_path="data/")
+    return load_and_process_scores_sparse_data(dir_path)
     
 def gen_is_waiting_features(table_count_of_honba_sticks,
                             table_count_of_remaining_tiles,
@@ -611,7 +723,54 @@ def gen_scores_features(table_count_of_honba_sticks,
 
     return f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13
 
-
+def gen_wfw_scores_features(table_count_of_honba_sticks,
+                            table_count_of_remaining_tiles,
+                            table_count_of_riichi_sticks,
+                            table_round_number,
+                            table_round_wind,
+                            table_turns,
+                            table_dealer_seat,
+                            table_dora_indicators,
+                            table_dora_tiles,
+                            table_revealed_tiles,
+                            player_winning_tiles,                   
+                            player_discarded_tiles, 
+                            player_dealer_seat,
+                            player_in_riichi,
+                            player_is_dealer,
+                            player_is_open_hand,              
+                            player_melds,                
+                            player_name,
+                            player_position,
+                            player_rank,
+                            player_scores,
+                            player_seat,
+                            player_uma):
+    # This function should be the same as gen_scores_features
+    return gen_scores_features(table_count_of_honba_sticks,
+                            table_count_of_remaining_tiles,
+                            table_count_of_riichi_sticks,
+                            table_round_number,
+                            table_round_wind,
+                            table_turns,
+                            table_dealer_seat,
+                            table_dora_indicators,
+                            table_dora_tiles,
+                            table_revealed_tiles,
+                            player_winning_tiles,                   
+                            player_discarded_tiles, 
+                            player_dealer_seat,
+                            player_in_riichi,
+                            player_is_dealer,
+                            player_is_open_hand,              
+                            player_melds,                
+                            player_name,
+                            player_position,
+                            player_rank,
+                            player_scores,
+                            player_seat,
+                            player_uma)
+    
 def gen_is_waiting_targets(player_winning_tiles):
     is_waiting = 1 if len(player_winning_tiles)>0 else 0
     return is_waiting
@@ -626,11 +785,18 @@ def gen_waiting_tiles_targets(player_winning_tiles):
     return waiting_tiles
 
 def gen_scores_targets(score_str):
-    """return log(score) as in the literature
+    """return log(score) as in the literature (for HS)
+    Note: score is negative here.
     """
     score = float(score_str)
     return np.log(-score)
 
+def gen_wfw_scores_targets(score_str):
+    """return log(score) as in the literature (for HS_WFW)
+    Note: score is positive here.
+    """
+    score = float(score_str)
+    return np.log(score)
     
 """
 Ref: https://stackoverflow.com/questions/6844998/is-there-an-efficient-way-of-concatenating-scipy-sparse-matrices/33259578#33259578
@@ -839,7 +1005,7 @@ def train_waiting_tiles_partial_fit(tile=1, load_classifier=False, save_classifi
 
 def train_scores_partial_fit(load_classifier=False, save_classifier=False):
     """
-    Linear regression model for score prediction.
+    Linear regression model for score (HS) prediction.
     
     tile: int (0-33). the tile number we want to train, i.e., our target label
     """
@@ -917,6 +1083,90 @@ def train_scores_partial_fit(load_classifier=False, save_classifier=False):
     
     if save_classifier:
         classifier_name = "scores.sav"
+        pickle.dump(classifier, open(abs_data_path+"/train_model/trained_models/"+classifier_name, 'wb'))
+        
+    return classifier, avg_mse_scores
+
+def train_wfw_scores_partial_fit(load_classifier=False, save_classifier=False):
+    """
+    Linear regression model for score (HS_WFW) prediction.
+    
+    tile: int (0-33). the tile number we want to train, i.e., our target label
+    """
+    full_dir = abs_data_path+"/train_model/data/wfw_scores/full_for_partial_fit"
+    dir_names = os.listdir(full_dir)
+    hidden_layers = (100,)*8
+    classifier = MLPRegressor(verbose=True, 
+                              hidden_layer_sizes=hidden_layers,
+                               learning_rate_init=0.001,
+                               batch_size="auto")
+#    classifier = SGDRegressor(verbose=True,
+#                               loss="squared_loss")
+
+    scaler = StandardScaler(with_mean=False)
+    
+    # get full target vector
+    for dn in dir_names:
+        directory = full_dir + "/" + dn + "/"
+        #print(directory)
+        # try to load data
+        try:
+            target = load_sparse_csr(directory + "scores_sparse_targets.npz")
+        except:
+            raise("The training data must be ready at data/wfw_scores/full/ before training model.")
+        # concatenate the target vector to get full vector
+        if "target_all" in locals():
+            target_all = sp.sparse.hstack((target_all, target[:,:]))
+        else:
+            target_all = target[:,:]
+        #print(target_all.shape)
+     
+    avg_mse_scores = [] 
+    
+    for dn in dir_names:
+        directory = full_dir + "/" + dn + "/"
+        # try to load training data
+        try:
+            sparse_features = load_sparse_csr(directory + "scores_sparse_features.npz")
+            target = load_sparse_csr(directory + "scores_sparse_targets.npz")
+            target = target[:,:]
+        except:
+            filename="scores_sparse_features.npz OR scores_sparse_targets.npz"
+            raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), filename)
+        
+        X = sparse_features #[0:600000,:]
+        y = target.T #[0:600000,:] # just forgot to make the dimension consistent
+        
+        y = np.array(y.todense()).ravel()
+        #y_all = np.array(target_all.T.todense()).ravel()
+        
+        #print(X.shape, y.shape)
+        scaler.partial_fit(X)
+        X = scaler.transform(X)
+        classifier.partial_fit(X, y)
+        
+        features_path = abs_data_path+"/train_model/data/wfw_scores/test/scores_sparse_features.npz"
+        target_path = abs_data_path+"/train_model/data/wfw_scores/test/scores_sparse_targets.npz"
+        
+        # try to load testing data
+        try:
+            sparse_features = load_sparse_csr(features_path)
+            sparse_targets = load_sparse_csr(target_path)
+            sparse_target=sparse_targets[:,:]
+        except:
+            filename="scores_sparse_features.npz OR scores_sparse_targets.npz"
+            raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), filename)
+            
+        mse_score = validate_regressor(clf=classifier,
+                                       sparse_features=sparse_features,
+                                       sparse_target=sparse_target,
+                                       scaler=scaler)
+        avg_mse_scores.append(mse_score)
+        
+        print("--------------------------------")
+    
+    if save_classifier:
+        classifier_name = "wfw_scores.sav"
         pickle.dump(classifier, open(abs_data_path+"/train_model/trained_models/"+classifier_name, 'wb'))
         
     return classifier, avg_mse_scores
@@ -1225,6 +1475,70 @@ def scores_data_preprocessing():
         n += 1
         
         print("-------------------------\n")
+        
+def wfw_scores_data_preprocessing():
+    debuglogs = os.listdir(abs_data_path+"/debuglogs/")
+    debuglogs_cp = debuglogs[:]
+    for debuglog in debuglogs:
+        if "test_wfw_scores" not in debuglog:
+            debuglogs_cp.remove(debuglog)
+    debuglogs = debuglogs_cp          
+    log_index = [int(d) for d in [log.split("_")[2][6:] for log in debuglogs]]
+    
+    for n in range(1,len(debuglogs)+1):
+        log_idx = log_index.index(n)
+        debuglog = debuglogs[log_idx]
+        #print(debuglog)
+    
+        debuglog_name = debuglog.split(".")[0]
+        print("{}. -----------------------------".format(n))
+        print(debuglog_name)
+        
+        # remove files in chunk and full
+        directory = abs_data_path+"/train_model/data/wfw_scores/chunk/"
+        files_in_chunk = os.listdir(directory)
+        #print("chunk before remove:{}".format(files_in_chunk))
+        for f in files_in_chunk:
+            os.remove(directory+f)
+        files_in_chunk = os.listdir(abs_data_path+"/train_model/data/wfw_scores/chunk/")
+        #print("chunk after remove:{}".format(files_in_chunk))
+
+        directory = abs_data_path+"/train_model/data/wfw_scores/full/"
+        files_in_full = os.listdir(directory)
+        #print("chunk before remove:{}".format(files_in_chunk))
+        for f in files_in_full:
+            os.remove(directory+f)
+        files_in_full = os.listdir(abs_data_path+"/train_model/data/wfw_scores/full/")
+        #print("chunk after remove:{}".format(files_in_chunk))
+        
+        if files_in_chunk:
+            sys.exit("Directory `chunk` is NOT empty.")
+        if files_in_full:
+            sys.exit("Directory `full` is NOT empty.")
+
+        tic = time.time()
+        load_and_process_wfw_scores_data(debuglog_name=debuglog_name, # debuglog_name="test_700000_lines[0_700000]"
+                                         num_lines=100000000, 
+                                         chunk_size=100000)
+        #load_and_process_data(num_lines=20000, chunk_size=5000)
+        toc = time.time()
+        print("Finished load and process: {:.2f} seconds".format(toc-tic))
+        
+        tic = time.time()
+        targets, features = load_and_process_wfw_scores_sparse_data(dir_path=abs_data_path+"/train_model/data/wfw_scores/chunk/")
+        save_sparse_csr(abs_data_path+"/train_model/data/wfw_scores/full/scores_sparse_features", features)
+        save_sparse_csr(abs_data_path+"/train_model/data/wfw_scores/full/scores_sparse_targets", targets)
+        toc = time.time()
+        print("Finished load sparse: {:.2f} seconds".format(toc-tic))
+        
+        
+        # make a new dir to store the aggregated feature and target data
+        os.mkdir(abs_data_path+"/train_model/data/wfw_scores/full_for_partial_fit/full_{}".format(n))
+        # copy the data to the folder
+        copytree(abs_data_path+"/train_model/data/wfw_scores/full", abs_data_path+"/train_model/data/wfw_scores/full_for_partial_fit/full_{}/".format(n))
+        n += 1
+        
+        print("-------------------------\n")        
         
         
 class WaitingTilesEvaluation(object):
