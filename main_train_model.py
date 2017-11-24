@@ -6,9 +6,11 @@ Created on Wed Oct 25 12:03:04 2017
 """
 import time
 
+from train_model.train_model import wfw_scores_data_preprocessing
 from train_model.train_model import scores_data_preprocessing
 from train_model.train_model import waiting_tiles_data_preprocessing
 from train_model.train_model import is_waiting_data_preprocessing
+from train_model.train_model import train_wfw_scores_partial_fit
 from train_model.train_model import train_scores_partial_fit
 from train_model.train_model import train_waiting_tiles_partial_fit
 from train_model.train_model import train_is_waiting_partial_fit
@@ -23,14 +25,15 @@ if __name__=="__main__":
 #    is_waiting_data_preprocessing()
 #    waiting_tiles_data_preprocessing() 
 #    scores_data_preprocessing() 
+#    wfw_scores_data_preprocessing() 
     
-    clf, avg_accuracy_scores, avg_auc_scores = train_is_waiting_partial_fit(load_classifier=False, save_classifier=True)
-    plot_scores(avg_accuracy_scores,
-                avg_auc_scores,
-                save_path=abs_data_path+"/train_model/trained_models/plots/",
-                save_name=("Accuracy_is_waiting",
-                           "AUC_is_waiting")
-                )
+#    clf, avg_accuracy_scores, avg_auc_scores = train_is_waiting_partial_fit(load_classifier=False, save_classifier=True)
+#    plot_scores(avg_accuracy_scores,
+#                avg_auc_scores,
+#                save_path=abs_data_path+"/train_model/trained_models/plots/",
+#                save_name=("Accuracy_is_waiting",
+#                           "AUC_is_waiting")
+#                )
     
 #    for tile in range(34):
 #        clf, avg_accuracy_scores, avg_auc_scores = train_waiting_tiles_partial_fit(tile=tile, load_classifier=False, save_classifier=True)     
@@ -46,6 +49,8 @@ if __name__=="__main__":
 #    print("Evaluation value: {}".format(evaluation))
 
 #    clf, avg_mse_scores = train_scores_partial_fit(load_classifier=False, save_classifier=True)
+
+    clf, avg_mse_scores = train_wfw_scores_partial_fit(load_classifier=False, save_classifier=True)
 
     toc = time.time()
     print("Elapsed time: {:.2} seconds.".format(toc-tic)) 
