@@ -7,6 +7,16 @@ Number of effective samples: 75110
 
 Evaluation value: 0.8220610355708976
 
+## Evaluation of HS prediction
+
+(1). HS
+
+     MSE = 0.4861283905494508
+     
+(2). HS_WFW: 
+
+     MSE = 0.3700624104298077
+
 ## Next Job
 
 Finish Monte Carlo simulation.
