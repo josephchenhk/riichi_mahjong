@@ -318,8 +318,8 @@ class TenhouClient(Client):
                         logger.info('Discard: {}'.format(TilesConverter.to_one_line_string([discarded_tile])))
 
                         can_call_riichi = main_player.can_call_riichi()
-                        print("<<---------------------!>")
-                        print(main_player)
+#                        print("<<---------------------!>")
+#                        print(main_player)
                         
 
                         # let's call riichi
@@ -390,8 +390,8 @@ class TenhouClient(Client):
                     # <E21/> - discard from the hand
                     if_tsumogiri = message[1].islower()
                     
-                    if if_tsumogiri:
-                        print("\ntsumogiri: {}\n".format(message))
+#                    if if_tsumogiri:
+#                        print("\ntsumogiri: {}\n".format(message))
                     
                     player_sign = message.lower()[1]
                     if player_sign == 'e':
@@ -462,10 +462,10 @@ class TenhouClient(Client):
                     
             # ADD: Just to see what information self.table can give us.
             # you may comment the following lines if un-necessary.
-            logger.info("\n------------ View Table --------------")
-            logger.info("revealed tiles:{}".format(self.table.revealed_tiles))
-            logger.info("tiles of player: {}".format(self.table.players[0].tiles))
-            logger.info("--------------------------------------\n")
+#            logger.info("\n------------ View Table --------------")
+#            logger.info("revealed tiles:{}".format(self.table.revealed_tiles))
+#            logger.info("tiles of player: {}".format(self.table.players[0].tiles))
+#            logger.info("--------------------------------------\n")
 
             if self._count_of_empty_messages >= 5:
                 logger.error('We are getting empty messages from socket. Probably socket connection was closed')
