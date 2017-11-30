@@ -15,12 +15,6 @@ from train_model.train_model import gen_is_waiting_features
 
 # TODO: For testing purpose. You can delete this function if unused.
 from train_model.train_model import load_sparse_csr
-
-# TODO: For testing purpose. You can delete this function if unused.
-#def load_sparse_csr(filename):
-#    loader = np.load(filename)
-#    return sp.sparse.csr_matrix((  loader['data'], loader['indices'], loader['indptr']),
-#                         shape = loader['shape'])
     
 class DefenceHandler(object):
     # Original DefenceHandler written by the author can be found in mahjong.ai.defence.main.py
@@ -59,7 +53,12 @@ class MainAI(BaseAI):
     def erase_state(self):
         self.current_strategy = None
         self.in_defence = False
-        
+     
+    def reset_melds(self):
+        """This setting is used to record the discarded tiles immediately
+        after calling melds. Whenever a `NEXTREADY` command is sent, this function
+        should be called.
+        """
         self.meld_sets = [[],[],[],[]] # four players
         self.meld_discarded_tiles = [[],[],[],[]] # four players
 
@@ -141,7 +140,7 @@ class MainAI(BaseAI):
         
         print("\n")
         for p in range(1,4):
-            print("prob of losing to {}: {}".format(p, self.get_losing_probability(p, tile_to_discard)))
+            print("prob is waiting to {}: {}".format(p, self.prob_is_waiting(p)))
         print("opponnet model discards: {}\n".format(tile_to_discard))
         return tile_to_discard
     
@@ -178,8 +177,14 @@ class MainAI(BaseAI):
         meld_sets = [mt.tiles for mt in player.melds]
         meld_open = [mt.opened for mt in player.melds]
         if meld_sets != self.meld_sets[p]:
-            self.meld_discarded_tiles[p].append(discarded_tiles[-1])
+            # It might happen that one player will discard more than one tile
+            # in a round, simply b/c he pon or kan more than once.
+            n = len(meld_sets) - len(self.meld_sets[p])
+            self.meld_discarded_tiles[p].extend(discarded_tiles[-n:])
+            # We need to update the self.meld_sets in order to compare with new
+            # information later.
             self.meld_sets[p] = meld_sets
+        print("!{}, {}, {}, {}".format(meld_sets, meld_open, self.meld_discarded_tiles[p], self.meld_sets[p]))
         melds = [(meld_sets[k], 1 if meld_open[k] else 0, self.meld_discarded_tiles[p][k]) for k in range(len(meld_sets))]           
         string_to_save = "{},{},{},{},{},{},{},{},{},{},{},{},{}".format(
                 winning_tiles,               
