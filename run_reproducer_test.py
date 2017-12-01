@@ -29,10 +29,10 @@ if __name__=="__main__":
         mjlog = os.path.join(abs_data_path, "raw_data", fn)
         
         # For HS
-        #cmd = "python reproducer_test_for_scores.py -m {} -d".format(mjlog) 
+        cmd = "python reproducer_test_for_scores.py -m {} -d".format(mjlog) 
         
         # For HS_WFW
-        cmd = "python reproducer_test_for_scores_wfw.py -m {} -d".format(mjlog) 
+        #cmd = "python reproducer_test_for_scores_wfw.py -m {} -d".format(mjlog) 
 
         #os.system(cmd)
         p = subprocess.Popen(cmd, shell=False, 
@@ -44,7 +44,7 @@ if __name__=="__main__":
         p.terminate()
         
         if n%7000==0:
-            print("{} mjlogs completed.".format(n+1))
+            print("{} mjlogs completed. Cost time: {:.3f} seconds.".format(n+1, time.time()-tic))
         
         #subprocess.call(['python', 'reproducer_test.py', '-m', '..\..\data\{} -d'.format(fn), '-d' ])
     toc = time.time()
