@@ -268,13 +268,15 @@ class TenhouClient(Client):
                     logger.info('Round  wind: {}'.format(DISPLAY_WINDS[self.table.round_wind]))
                     logger.info('Player wind: {}'.format(DISPLAY_WINDS[main_player.player_wind]))
 
-                    # initialize the game state
-#                    game_state = {}
-#                    game_state["dealer"] = values['dealer']
-#                    game_state["round_wind"] = self.table.round_wind
-#                    game_state["player_wind"] = main_player.player_wind
-#                    game_state["dora_indicator"] = values['dora_indicator']
-#                    logger2.info(game_state)
+                    # we need to erase the melds information since it is 
+                    # a new game.
+                    # If we are using opponent_model, we need to reset the melds
+                    # when a new game initiated. For other model, this function
+                    # may not exist. [Joseph]
+                    try:
+                        self.table.player.ai.reset_melds()
+                    except:
+                        pass
 
                 if '<REINIT' in message:
                     players = self.decoder.parse_table_state_after_reconnection(message)

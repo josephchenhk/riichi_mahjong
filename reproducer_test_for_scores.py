@@ -194,10 +194,13 @@ class TenhouLogReproducer(object):
                 who_regex = re.compile("who=\"\d+\"")
                 fromWho_regex = re.compile("fromWho=\"\d+\"")           
                 sc_regex = "sc=\"[+-]?\d+,[+-]?\d+,[+-]?\d+,[+-]?\d+,[+-]?\d+,[+-]?\d+,[+-]?\d+,[+-]?\d+\""
-                score_regex = re.compile(sc_regex)              
+                score_regex = re.compile(sc_regex)
+                machi_regex = re.compile("machi=\"\d+\"")
+                
                 who = int(who_regex.search(next_tag).group(0).replace('"','').split("=")[1])
                 fromWho = int(fromWho_regex.search(next_tag).group(0).replace('"','').split("=")[1])
                 scores = [float(s) for s in score_regex.search(next_tag).group(0).replace('"','').split("=")[1].split(",")]              
+                machi = int(machi_regex.search(next_tag).group(0).replace('"','').split("=")[1])
                 score = scores[fromWho*2+1] 
                 player_seat, features = self.execute_extraction(tag, table)
                 
@@ -205,7 +208,7 @@ class TenhouLogReproducer(object):
                     if (features is not None) and (player_seat is not None) and (score<0):
                         # The first element before ";" is table_info, therefor player_info starts
                         # from index 1, and we put who+1 here.
-                        self.feature_to_logger(features, who+1, score)
+                        self.feature_to_logger(features, who+1, machi//4, score)
                         score = 1
                     #print("\n{}\n{}\n".format(tag,table.players[who].tiles))
             else:
@@ -225,12 +228,18 @@ class TenhouLogReproducer(object):
 
             print('Discard: {}'.format(TilesConverter.to_one_line_string([tile])))
             
-    def feature_to_logger(self, features, player_seat, score):
+    def feature_to_logger(self, features, player_seat, machi_34, score):
+        """
+        param features:
+        param player_seat:
+        param machi_34: int (0-33), the discarded tile that leads to a winning hand of opponent
+        param score: 
+        """
         features_list = features.split(";")
         assert len(features_list)==6, "<D> Features format incorrect!"
         table_info = features_list[0]
         player_info = features_list[player_seat]
-        logger2.info(table_info + ";" + player_info + ";" + str(score))    
+        logger2.info(table_info + ";" + player_info + ";" + str(machi_34) + ";" + str(score))    
         
     def execute_extraction(self, tag, table):
         if '<D' in tag:
