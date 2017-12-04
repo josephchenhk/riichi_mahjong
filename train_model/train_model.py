@@ -268,7 +268,8 @@ def load_and_process_scores_data(debuglog_name="", num_lines=None, chunk_size=10
             
         for n, line in enumerate(f):
             if n<num_lines:
-                d1, d2, d3 = line.replace("\n","").split(";")
+                # ADD: add discarded tile (d3)
+                d1, d2, d3, d4 = line.replace("\n","").split(";")
                 #d1 = d1.replace(",,",",-1,").replace("True","1").replace("False","0")
                 #d2 = d2.replace(",,",",-1,").replace("True","1").replace("False","0")
 
@@ -296,8 +297,9 @@ def load_and_process_scores_data(debuglog_name="", num_lines=None, chunk_size=10
                  player_scores,
                  player_seat,
                  player_uma) = ast.literal_eval(d2)
-    
                 
+                discarded_tile = int(d3)
+                   
                 features = gen_scores_features(table_count_of_honba_sticks,
                                                         table_count_of_remaining_tiles,
                                                         table_count_of_riichi_sticks,
@@ -323,12 +325,14 @@ def load_and_process_scores_data(debuglog_name="", num_lines=None, chunk_size=10
                                                         player_uma)
                 #f3, f4, f5, f6, f7, f8, f9, f10, f11 = features
                 f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13 = features 
+                f14 = discarded_tile
+                
                 #print(n, [len([f1]), len([f2]), len([f3]), len([f4]), len([f5]), len(f6), len(f7), len(f8), len(f9), len(f10), len(f11)])
-                target = gen_scores_targets(d3) # scores lost to the winner
+                target = gen_scores_targets(d4) # scores lost to the winner
                 target_list.append(target)
                 
                 #feature_list.append([f1]+[f2]+[f3]+[f4]+[f5]+f6+f7+f8+f9+f10+f11)
-                feature_list.append([f1]+[f2]+[f3]+[f4]+[f5]+f6+f7+[f8]+[f9]+[f10]+[f11]+[f12]+[f13])
+                feature_list.append([f1]+[f2]+[f3]+[f4]+[f5]+f6+f7+[f8]+[f9]+[f10]+[f11]+[f12]+[f13]+[f14])
                 
                 if m==chunk_size:
                     print(k)
