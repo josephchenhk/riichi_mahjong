@@ -48,9 +48,11 @@ if __name__=="__main__":
 #    evaluation = waiting_tiles_evaluation.accuracy_of_prediction()
 #    print("Evaluation value: {}".format(evaluation))
 
-    clf, avg_mse_scores = train_scores_partial_fit(load_classifier=False, save_classifier=True)
+    clf, avg_mse_scores = train_scores_partial_fit(load_classifier=False, save_classifier=True,
+                                                   save_scaler=True)
 
-#    clf, avg_mse_scores = train_wfw_scores_partial_fit(load_classifier=False, save_classifier=True)
+#    clf, avg_mse_scores = train_wfw_scores_partial_fit(load_classifier=False, save_classifier=True,
+#                                                       save_scaler=True)
 
     toc = time.time()
     print("Elapsed time: {:.2} seconds.".format(toc-tic)) 
