@@ -56,6 +56,10 @@ class MainAI(BaseAI):
         self.rgrs_scores = pickle.load(open(abs_data_path+"/train_model/trained_models/scores.sav", "rb"))
         self.rgrs_wfw_scores = pickle.load(open(abs_data_path+"/train_model/trained_models/wfw_scores.sav", "rb"))
         
+        # We also load the scalers for regressors
+        self.scaler_scores = pickle.load(open(abs_data_path+"/train_model/trained_models/scaler_scores.sav", "rb")) 
+        self.scaler_wfw_scores = pickle.load(open(abs_data_path+"/train_model/trained_models/scaler_wfw_scores.sav", "rb"))
+        
     def erase_state(self):
         self.current_strategy = None
         self.in_defence = False
@@ -155,14 +159,22 @@ class MainAI(BaseAI):
         scores = []
         for tile in self.player.tiles:
             score = 0
+            # TODO: the value of Sim(tile) should be determined by Monte-Carlo
+            # simulation.
+            sim = 0
+            
+            # Not Losing Probability
+            NLP = 1 
             for p in range(1,4):
                 # Losing Probability: LP(p,tile)
                 LP = self.prob_is_waiting(p) * self.prob_winning_tile(p, tile//4) # tile in 34 format
+                # Accumulated Not Losing Probability
+                NLP *= (1-LP)
                 # Hand Score (by discarding a winning tile): HS(p,tile)
-                # TODO: need to finish this function later
-                HS = 1 # self.hand_score(p, tile)
+                HS = self.hand_score(p, tile//4)
                 EL = LP * HS
                 score -= EL
+            score += sim*NLP 
             scores.append(score)
         # Find out the highest score choice
         n = scores.index(max(scores))        
@@ -582,8 +594,8 @@ class MainAI(BaseAI):
         return prob_of_winning_tile
     
     # TODO: this function has not been finished, as I need to go back to modify
-    # the HS and HS_WFW training model to add back `discarded tile` as one of 
-    # the features.
+    # the HS (for HS_WFW there is no need) training model to add back 
+    # `discarded tile` as one of the features.
     def hand_score(self, p, tile):
         """Use our trained model to predict loss if discarding a winning tile 
         `tile` to the opponent `p`.
@@ -648,12 +660,16 @@ class MainAI(BaseAI):
                                         player_seat,
                                         player_uma)
         f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13 = features
-        opponent_info = [f1]+[f2]+[f3]+[f4]+[f5]+f6+f7+[f8]+[f9]+[f10]+[f11]+[f12]+[f13]
+        f14 = tile
+        opponent_info = [f1]+[f2]+[f3]+[f4]+[f5]+f6+f7+[f8]+[f9]+[f10]+[f11]+[f12]+[f13]+[f14]
         opponent_info = np.array([opponent_info])
         
         # Predicted hand score
         rgrs = self.rgrs_scores
-        prob_of_winning_tile = rgrs.predict_proba(opponent_info)[0][1]     
-        return prob_of_winning_tile
+        scaler = self.scaler_scores
+        scaled_opponent_info = scaler.transform(opponent_info)
+        log_HS = rgrs.predict(scaled_opponent_info)[0] 
+        # HS = np.exp(log_HS)
+        return log_HS
     
     
