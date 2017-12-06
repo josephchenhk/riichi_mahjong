@@ -1007,7 +1007,7 @@ def train_waiting_tiles_partial_fit(tile=1, load_classifier=False, save_classifi
         
     return classifier, avg_accuracy_scores, avg_auc_scores
 
-def train_scores_partial_fit(load_classifier=False, save_classifier=False):
+def train_scores_partial_fit(load_classifier=False, save_classifier=False, save_scaler=False):
     """
     Linear regression model for score (HS) prediction.
     
@@ -1088,10 +1088,13 @@ def train_scores_partial_fit(load_classifier=False, save_classifier=False):
     if save_classifier:
         classifier_name = "scores.sav"
         pickle.dump(classifier, open(abs_data_path+"/train_model/trained_models/"+classifier_name, 'wb'))
-        
+    if save_scaler:
+        scaler_name = "scaler_scores.sav"
+        pickle.dump(scaler, open(abs_data_path+"/train_model/trained_models/"+scaler_name, 'wb'))
+    
     return classifier, avg_mse_scores
 
-def train_wfw_scores_partial_fit(load_classifier=False, save_classifier=False):
+def train_wfw_scores_partial_fit(load_classifier=False, save_classifier=False, save_scaler=False):
     """
     Linear regression model for score (HS_WFW) prediction.
     
@@ -1172,6 +1175,9 @@ def train_wfw_scores_partial_fit(load_classifier=False, save_classifier=False):
     if save_classifier:
         classifier_name = "wfw_scores.sav"
         pickle.dump(classifier, open(abs_data_path+"/train_model/trained_models/"+classifier_name, 'wb'))
+    if save_scaler:
+        scaler_name = "scaler_wfw_scores.sav"
+        pickle.dump(scaler, open(abs_data_path+"/train_model/trained_models/"+scaler_name, 'wb'))
         
     return classifier, avg_mse_scores
 
@@ -1248,7 +1254,8 @@ def validate_regressor(clf, sparse_features, sparse_target, scaler):
     mse_scores = []
     for i in range(1): 
         X_test = scaler.transform(X_test)
-        #print(X_test[1:4,:].todense(),"!!!")
+#        print(X_test[1:4,:].todense(),"!!!")
+#        print(X_test.shape)
         y_pred = clf.predict(X_test)
         mse_score = metrics.mean_squared_error(y_test, y_pred)
         mse_scores.append(mse_score)
