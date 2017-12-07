@@ -29,11 +29,14 @@ if __name__=="__main__":
         mjlog = os.path.join(abs_data_path, "raw_data", fn)
         
         # For HS
-        cmd = "python reproducer_test_for_scores.py -m {} -d".format(mjlog) 
+        #cmd = "python reproducer_test_for_scores.py -m {} -d".format(mjlog) 
         
         # For HS_WFW
         #cmd = "python reproducer_test_for_scores_wfw.py -m {} -d".format(mjlog) 
 
+        # For one player
+        cmd = "python reproducer_test_for_one_player.py -m {} -d".format(mjlog) 
+        
         #os.system(cmd)
         p = subprocess.Popen(cmd, shell=False, 
                              stdout=subprocess.DEVNULL, 

@@ -405,3 +405,134 @@ class ExtractFeatures(object):
             return None
         else:
             return table_info + ";" + player_info
+        
+        
+    def get_one_player_discards_features(self, table):
+        """
+        Get features from current table state.
+        
+        : revealed tiles : table.revealed_tiles, list of tile occurrence (0-4), 
+                           of fixed length 34.
+        :tiles of player*: table.players[0].tiles, list of tile number (0-135)
+        :      meld sets : table.players[0].melds, list of `Meld`
+                           Meld has three attributes:
+                               opened: True/False
+                               type: chi/pon/kan
+                               tiles: list of tile number (0-135)
+        :discarded tiles : table.players[0].discards, list of `Tile`
+                           Tile has attribute:
+                               value: tile number (0-135)
+        :dora indicators : table.dora_indicators, list of tile number
+        :        is dora : table.is_dora(tile number), tile number (0-135)
+        :    closed hand*: table.players[0].closed_hand, list of tile number (0-135)
+        
+        *Note: these info (tiles of player, closed hand) is only visible to self 
+               player, we can not see hands of other players anyway.
+        """
+        dora_tiles = [d for d in range(136) if table.is_dora(d) ]
+        table_turns = min([len(table.players[m].discards)+1 for m in range(4)])
+        table_info = "{},{},{},{},{},{},{},{},{},{}".format(
+                      table.count_of_honba_sticks,
+                      table.count_of_remaining_tiles,
+                      table.count_of_riichi_sticks,
+                      table.round_number,
+                      table.round_wind,
+                      table_turns,
+                      table.dealer_seat,
+                      table.dora_indicators,
+                      dora_tiles, # 0-136
+                      table.revealed_tiles                    
+                      ) 
+       
+        player_info = ""     
+        for m in range(4): # There are four players
+            player = table.players[m]
+            
+            '''
+            player.discards
+            player.closed_hand
+            player.dealer_seat
+            player.in_riichi
+            #player.in_defence_mode
+            #player.in_tempai
+            player.is_dealer
+            player.is_open_hand
+            player.last_draw
+            player.melds
+            player.name
+            player.position
+            player.rank
+            player.scores
+            player.seat
+            player.tiles
+            player.uma
+            '''
+            
+            # Discarded tiles can be seen by everybody
+            discarded_tiles = [(d.value,1) if d.is_tsumogiri else (d.value,0) for d in player.discards]
+            discarded_kinds = [d[0]//4 for d in discarded_tiles]
+                      
+            # If we need one more tile to complete our hand, and this specific tile
+            # we want is known to be within the wall tiles, then the hand is waiting.
+            current_hand = TilesConverter.to_34_array(player.tiles)
+                       
+            winning_tiles = []
+            for n in range(34):
+                # if there is no tile available in the wall, or the tile we need
+                # to complete a hand has been discarded previously, we do not wait
+                # for this tile. But we can still wait for tsumo??
+                if (table.revealed_tiles[n]<4) and (n not in set(discarded_kinds)):
+                    completed_hand = current_hand[:]
+                    completed_hand[n] += 1
+                    can_be_waiting = self.agari.is_agari(completed_hand)
+                    if can_be_waiting:
+                        winning_tiles.append(n) # n is the winning tile we want
+                        
+#            hand = [8, 11, 43, 44, 48, 51, 58, 79, 82, 87, 88, 92, 98] #+ [55]
+#            hand34 = TilesConverter.to_34_array(hand)
+#            if current_hand==hand34:
+#                print("player {} tiles: {}".format(m, player.tiles))
+#                print("player {} winning tiles: {}".format(m, winning_tiles))
+            
+            # Meld sets (both open and concealed) are also visible to everybody
+            meld_sets = [mt.tiles for mt in player.melds]
+            meld_open = [mt.opened for mt in player.melds]
+            if meld_sets != self.meld_sets[m]:
+                self.meld_discarded_tiles[m].append(discarded_tiles[-1])
+                self.meld_sets[m] = meld_sets
+            # Example: melds=[([12, 18, 20], 1, (108, 0)), ([40, 45, 49], 1, (7, 0))]
+            melds = [(meld_sets[k], 1 if meld_open[k] else 0, self.meld_discarded_tiles[m][k]) for k in range(len(meld_sets))]
+  
+            string_to_save = "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}".format(
+                    winning_tiles,                  
+                    discarded_tiles, #player.discards
+                    
+                    # ADD: we need closed hand info to tain one player mahjong here
+                    player.closed_hand, # this info is invisible
+                    
+                    player.dealer_seat,
+                    1 if player.in_riichi else 0,
+                    #player.in_defence_mode
+                    #player.in_tempai
+                    1 if player.is_dealer else 0,
+                    1 if player.is_open_hand else 0,
+                    
+                    # ADD: we might not need this info, but better keep it in case we need it later.
+                    player.last_draw, # this info is invisible
+                    
+                    melds,
+                    player.name if player.name else -1,
+                    player.position if player.position else -1,
+                    player.rank if player.rank else -1,
+                    player.scores if player.scores else -1,
+                    player.seat if player.seat else -1,
+                    #player.tiles, # this info is invisible
+                    player.uma if player.uma else -1
+            )
+        
+            player_info += string_to_save + ";"
+        
+        if player_info=="":
+            return None
+        else:
+            return table_info + ";" + player_info
