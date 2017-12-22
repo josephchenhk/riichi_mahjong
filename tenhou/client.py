@@ -294,7 +294,13 @@ class TenhouClient(Client):
                 # draw and discard
                 if '<T' in message:
                     # we won by self draw (tsumo)
-                    if 't="16"' in message:
+#                    if 't="16"' in message:
+#                        self._send_message('<N type="7" />')
+#                        continue
+
+                    win_suggestions = ['t="16"', 't="48"']
+                    # we won by self draw (tsumo)
+                    if any(i in message for i in win_suggestions):
                         self._send_message('<N type="7" />')
                         continue
 
@@ -380,10 +386,20 @@ class TenhouClient(Client):
                             self._send_message('<D p="{}"/>'.format(discarded_tile))
 
                 win_suggestions = ['t="8"', 't="9"', 't="12"', 't="13"']
+#                # we win by other player's discard
+#                if any(i in message for i in win_suggestions):
+#                    sleep(TenhouClient.SLEEP_BETWEEN_ACTIONS)
+#                    self._send_message('<N type="6" />')
                 # we win by other player's discard
                 if any(i in message for i in win_suggestions):
+                    tile = self.decoder.parse_tile(message)
+                    enemy_seat = self.decoder.get_enemy_seat(message)
                     sleep(TenhouClient.SLEEP_BETWEEN_ACTIONS)
-                    self._send_message('<N type="6" />')
+
+                    if main_player.should_call_win(tile, enemy_seat):
+                        self._send_message('<N type="6" />')
+                    else:
+                        self._send_message('<N />')
 
                 if self.decoder.is_discarded_tile_message(message):
                     tile = self.decoder.parse_tile(message)
@@ -395,13 +411,15 @@ class TenhouClient(Client):
 #                    if if_tsumogiri:
 #                        print("\ntsumogiri: {}\n".format(message))
                     
-                    player_sign = message.lower()[1]
-                    if player_sign == 'e':
-                        player_seat = 1
-                    elif player_sign == 'f':
-                        player_seat = 2
-                    else:
-                        player_seat = 3
+#                    player_sign = message.lower()[1]
+#                    if player_sign == 'e':
+#                        player_seat = 1
+#                    elif player_sign == 'f':
+#                        player_seat = 2
+#                    else:
+#                        player_seat = 3
+
+                    player_seat = self.decoder.get_enemy_seat(message)
 
                     self.table.add_discarded_tile(player_seat, tile, if_tsumogiri)
 
