@@ -262,7 +262,8 @@ class Player(PlayerInterface):
                 # If Opponent Model is enabled, we load it; otherwise, we load
                 # the original rule-based AI.
                 if settings.ENABLE_OPPONENT_AI:
-                    from mahjong.ai.opponent_model import MainAI
+                    #from mahjong.ai.opponent_model import MainAI
+                    from mahjong.ai.simple_oneplayer_model import MainAI
                 else:
                     from mahjong.ai.main import MainAI
             else:
@@ -332,6 +333,12 @@ class EnemyPlayer(PlayerInterface):
 
 
 class VisiblePlayer(Player, EnemyPlayer):
+    
+    # ADD[joseph 20171215]: add waiting and fold feature to player
+    waiting = False
+    fold = False
+    #tiles = []
+    
     def __init__(self, table, seat, dealer_seat, previous_ai):
         super().__init__(table, seat, dealer_seat, previous_ai)
         
@@ -365,6 +372,32 @@ class VisiblePlayer(Player, EnemyPlayer):
             self.melds.remove(pon_set[0])
 
         self.melds.append(meld)
+        
+        
+    def _load_ai(self):
+        if self.previous_ai:
+            try:
+                from mahjong.ai.old_version import MainAI
+            # project wasn't set up properly
+            # we don't have old version
+            except ImportError:
+                logger.error('Wasn\'t able to load old api version')
+                from mahjong.ai.main import MainAI
+        else:
+            if settings.ENABLE_AI:
+                # If Opponent Model is enabled, we load it; otherwise, we load
+                # the original rule-based AI.
+                if settings.ENABLE_OPPONENT_AI:
+                    #from mahjong.ai.opponent_model import MainAI
+                    from mahjong.ai.simple_oneplayer_model import MainAI
+                else:
+                    from mahjong.ai.main import MainAI
+            else:
+                from mahjong.ai.random import MainAI
+
+        self.ai = MainAI(self)
+        
+
 
 #class VisibleEnemyPlayer(EnemyPlayer):
 #    tiles = None

@@ -474,6 +474,72 @@ def load_and_process_wfw_scores_data(debuglog_name="", num_lines=None, chunk_siz
     toc = time.time()
     print("Data `Scores` has been loaded successfully (Time: {:.2f} seconds). Wait for parsing...".format(toc-tic))
  
+def load_and_process_one_player_data(debuglog_name="", num_lines=None, chunk_size=1000):
+    
+    tic = time.time()
+    target_list = []
+    feature_list = []
+    with open(abs_data_path+"/debuglogs/{}.debuglog".format(debuglog_name)) as f:
+        m = 1
+        
+        existing_files = sorted([int(name.split("_")[-1].split(".")[0]) for name in os.listdir(abs_data_path+"/train_model/data/one_player/chunk")])
+        if existing_files:
+            k = existing_files[-1] + 1
+        else:
+            k = 1
+            
+        for n, line in enumerate(f):
+            if n<num_lines:
+                d1, d2, d3, d4 = line.split(";")
+                #d1 = d1.replace(",,",",-1,").replace("True","1").replace("False","0")
+                #d2 = d2.replace(",,",",-1,").replace("True","1").replace("False","0")
+
+                player_last_draw = ast.literal_eval(d1) # no use here
+                player_discard = ast.literal_eval(d2)
+                player_hand = ast.literal_eval(d3)
+                table_revealed_tiles = ast.literal_eval(d4)
+    
+                player_hand_before_discard = player_hand + [player_discard[0]]  
+                
+                features = gen_one_player_features(player_hand_before_discard,
+                                                   table_revealed_tiles)
+                
+                f1, f2 = features
+                #print(n, [len([f1]), len([f2]), len([f3]), len([f4]), len([f5]), len(f6), len(f7), len(f8), len(f9), len(f10), len(f11)])
+                target = gen_one_player_targets(player_discard)
+                target_list.append(target)
+                feature_list.append(f1+f2)
+                
+                if m==chunk_size:
+                    print(k)
+                    m = 0
+                    sparse_features = sp.sparse.csr_matrix(feature_list)
+                    save_sparse_csr(abs_data_path+"/train_model/data/one_player/chunk/one_player_sparse_feature_{}".format(k), sparse_features) 
+                    feature_list = []
+                    
+                    sparse_targets = sp.sparse.csr_matrix(target_list)
+                    save_sparse_csr(abs_data_path+"/train_model/data/one_player/chunk/one_player_sparse_target_{}".format(k), sparse_targets) 
+                    target_list = []
+                    
+                    k += 1
+              
+            else:
+                break
+            
+            m += 1
+    
+    if target_list:
+        sparse_targets = sp.sparse.csr_matrix(target_list)
+        print("sparse_target size: {}".format(sparse_targets.shape))
+        save_sparse_csr(abs_data_path+"/train_model/data/one_player/chunk/one_player_sparse_target_{}".format(k), sparse_targets) 
+        
+    if feature_list:
+        sparse_features = sp.sparse.csr_matrix(feature_list)
+        print("sparse_features size: {}".format(sparse_features.shape))
+        save_sparse_csr(abs_data_path+"/train_model/data/one_player/chunk/one_player_sparse_feature_{}".format(k), sparse_features) 
+    
+    toc = time.time()
+    print("Data has been loaded successfully (Time: {:.2f} seconds). Wait for parsing...".format(toc-tic))
     
 def load_and_process_is_waiting_sparse_data(dir_path="data/"):
     
@@ -540,6 +606,29 @@ def load_and_process_scores_sparse_data(dir_path="data/"):
 def load_and_process_wfw_scores_sparse_data(dir_path="data/"):  
     # This function should be the same as load_and_process_scores_sparse_data(dir_path="data/")
     return load_and_process_scores_sparse_data(dir_path)
+ 
+def load_and_process_one_player_sparse_data(dir_path="data/"):
+    
+    dir_names = os.listdir(dir_path)
+    for name in dir_names:
+        if 'sparse_feature_' in name:
+            sparse_feature = load_sparse_csr(dir_path+name)
+            #print(sparse_feature.shape)
+            if 'features' in locals():
+                features = sp.sparse.vstack([features, sparse_feature])
+            else:
+                features = sp.sparse.csr_matrix(sparse_feature)
+                
+        if 'sparse_target_' in name:
+            sparse_target = load_sparse_csr(dir_path+name)
+            #print(sparse_feature.shape)
+            if 'targets' in locals():
+                targets = sp.sparse.vstack([targets, sparse_target])
+            else:
+                targets = sp.sparse.csr_matrix(sparse_target)
+    print("sparse_target size: {}".format(targets.shape))
+    print("sparse_feature size: {}".format(features.shape))
+    return targets, features
     
 def gen_is_waiting_features(table_count_of_honba_sticks,
                             table_count_of_remaining_tiles,
@@ -775,6 +864,16 @@ def gen_wfw_scores_features(table_count_of_honba_sticks,
                             player_seat,
                             player_uma)
     
+def gen_one_player_features(player_hand_before_discard,
+                            table_revealed_tiles):
+    """For one player mahjong, only `table revealed tiles` and `hands` are considered.
+    """
+    player_hand = player_hand_before_discard
+    player_hand_34 = TilesConverter.to_34_array(player_hand)
+    f1 = player_hand_34
+    f2 = table_revealed_tiles
+    return f1, f2
+    
 def gen_is_waiting_targets(player_winning_tiles):
     is_waiting = 1 if len(player_winning_tiles)>0 else 0
     return is_waiting
@@ -801,6 +900,12 @@ def gen_wfw_scores_targets(score_str):
     """
     score = float(score_str)
     return np.log(score)
+
+def gen_one_player_targets(player_discard):
+    """return discard tiles in 34 format
+    """
+    discard = player_discard[0]  # discarded tile in 136 format
+    return TilesConverter.to_34_array([discard])
     
 """
 Ref: https://stackoverflow.com/questions/6844998/is-there-an-efficient-way-of-concatenating-scipy-sparse-matrices/33259578#33259578
@@ -1180,6 +1285,91 @@ def train_wfw_scores_partial_fit(load_classifier=False, save_classifier=False, s
         pickle.dump(scaler, open(abs_data_path+"/train_model/trained_models/"+scaler_name, 'wb'))
         
     return classifier, avg_mse_scores
+
+def train_one_player_partial_fit(tile=1, load_classifier=False, save_classifier=False):
+    """
+    Logistic regression model for one player mahjong.
+    
+    tile: int (0-33). the tile number we want to train, i.e., our target label
+    """
+    full_dir = abs_data_path+"/train_model/data/one_player/full_for_partial_fit"
+    dir_names = os.listdir(full_dir)
+    
+    hidden_layers = (100,)*4
+    classifier = MLPClassifier(verbose=True,
+                               hidden_layer_sizes = hidden_layers,
+                               learning_rate_init=0.001,
+                               batch_size=2000)
+#    classifier = SGDClassifier(verbose=True,
+#                               loss="log",
+#                               class_weight={1:0.99, 0:0.01})
+    
+    # get full target vector
+    for dn in dir_names:
+        directory = full_dir + "/" + dn + "/"
+        #print(directory)
+        # try to load data
+        try:
+            target = load_sparse_csr(directory + "one_player_sparse_targets.npz")
+        except:
+            raise("The training data must be ready at {}/train_model/data/one_player/full/ before training model.".format(full_dir))
+        # concatenate the target vector to get full vector
+        if "target_all" in locals():
+            target_all = sp.sparse.hstack((target_all, target[:,tile]))
+        else:
+            target_all = target[:,tile]
+        #print(target_all.shape)
+     
+    avg_accuracy_scores = []
+    avg_auc_scores = []    
+    for dn in dir_names:
+        directory = full_dir + "/" + dn + "/"
+        # try to load data
+        try:
+            sparse_features = load_sparse_csr(directory + "one_player_sparse_features.npz")
+            target = load_sparse_csr(directory + "one_player_sparse_targets.npz")
+            target = target[:,tile]
+        except:
+            filename="one_player_sparse_features.npz OR waiting_tiles_sparse_targets.npz"
+            raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), filename)
+        
+        X = sparse_features #[0:600000,:]
+        y = target.T #[0:600000,:] # just forgot to make the dimension consistent
+        
+        y = np.array(y.todense()).ravel()
+        y_all = np.array(target_all.T.todense()).ravel()
+        
+        #print(X.shape, y.shape)
+        
+        
+        classifier.partial_fit(X, y, np.unique(y_all))
+        
+        features_path = abs_data_path+"/train_model/data/one_player/test/one_player_sparse_features.npz"
+        target_path = abs_data_path+"/train_model/data/one_player/test/one_player_sparse_targets.npz"
+        
+        # try to load data
+        try:
+            sparse_features = load_sparse_csr(features_path)
+            sparse_targets = load_sparse_csr(target_path)
+            sparse_target=sparse_targets[:,tile]
+        except:
+            filename="waiting_tiles_sparse_features.npz OR waiting_tiles_sparse_targets.npz"
+            raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), filename)
+            
+        avg_accuracy_score, avg_auc_score = validate_classifier(clf=classifier,
+                                                                sparse_features=sparse_features,
+                                                                sparse_target=sparse_target)
+        avg_accuracy_scores.append(avg_accuracy_score)
+        avg_auc_scores.append(avg_auc_score)
+        
+        print("--------------------------------")
+    
+    if save_classifier:
+        classifier_name = "one_player_{}.sav".format(tile)
+        pickle.dump(classifier, open(abs_data_path+"/train_model/trained_models/"+classifier_name, 'wb'))
+        
+    return classifier, avg_accuracy_scores, avg_auc_scores
+
 
 def validate_classifier(clf, sparse_features, sparse_target):
     
@@ -1636,7 +1826,160 @@ class WaitingTilesEvaluation(object):
         if evaluation_values:
             return sum(evaluation_values)*1.0/(len(evaluation_values))
             
-            
+def one_player_data_preprocessing():
+    debuglogs = os.listdir(abs_data_path+"/debuglogs/")
+    debuglogs_cp = debuglogs[:]
+    for debuglog in debuglogs:
+        if "testoneplayer" not in debuglog:
+            debuglogs_cp.remove(debuglog)
+    debuglogs = debuglogs_cp      
+    log_index = [int(d) for d in [log.split("_")[0][13:] for log in debuglogs]]
+    
+    for n in range(1,len(debuglogs)+1):
+        log_idx = log_index.index(n)
+        debuglog = debuglogs[log_idx]
+        #print(debuglog)
+    
+        debuglog_name = debuglog.split(".")[0]
+        print("{}. -----------------------------".format(n))
+        print(debuglog_name)
+        
+        # remove files in chunk and full
+        directory = abs_data_path+"/train_model/data/one_player/chunk/"
+        files_in_chunk = os.listdir(directory)
+        #print("chunk before remove:{}".format(files_in_chunk))
+        for f in files_in_chunk:
+            os.remove(directory+f)
+        files_in_chunk = os.listdir(abs_data_path+"/train_model/data/one_player/chunk/")
+        #print("chunk after remove:{}".format(files_in_chunk))
+
+        directory = abs_data_path+"/train_model/data/one_player/full/"
+        files_in_full = os.listdir(directory)
+        #print("chunk before remove:{}".format(files_in_chunk))
+        for f in files_in_full:
+            os.remove(directory+f)
+        files_in_full = os.listdir(abs_data_path+"/train_model/data/one_player/full/")
+        #print("chunk after remove:{}".format(files_in_chunk))
+        
+        if files_in_chunk:
+            sys.exit("Directory `chunk` is NOT empty.")
+        if files_in_full:
+            sys.exit("Directory `full` is NOT empty.")
+
+        tic = time.time()
+        load_and_process_one_player_data(debuglog_name=debuglog_name, # debuglog_name="test_700000_lines[0_700000]"
+                              num_lines=100000000, 
+                              chunk_size=100000)
+        #load_and_process_data(num_lines=20000, chunk_size=5000)
+        toc = time.time()
+        print("Finished load and process: {:.2f} seconds".format(toc-tic))
+        
+        tic = time.time()
+        targets, features = load_and_process_one_player_sparse_data(dir_path=abs_data_path+"/train_model/data/one_player/chunk/")
+        save_sparse_csr(abs_data_path+"/train_model/data/one_player/full/one_player_sparse_features", features)
+        save_sparse_csr(abs_data_path+"/train_model/data/one_player/full/one_player_sparse_targets", targets)
+        toc = time.time()
+        print("Finished load sparse: {:.2f} seconds".format(toc-tic))
+        
+        
+        # make a new dir to store the aggregated feature and target data
+        os.mkdir(abs_data_path+"/train_model/data/one_player/full_for_partial_fit/full_{}".format(n))
+        # copy the data to the folder
+        copytree(abs_data_path+"/train_model/data/one_player/full", abs_data_path+"/train_model/data/one_player/full_for_partial_fit/full_{}/".format(n))
+        n += 1
+        
+        print("-------------------------\n")
+  
+
+
+###############################################################################
+## 
+##    The following code is for testing purpose only
+##
+###############################################################################
+def test_func(tile=1, load_classifier=False, save_classifier=False):
+    """
+    Logistic regression model for one player mahjong.
+    
+    tile: int (0-33). the tile number we want to train, i.e., our target label
+    """
+    full_dir = abs_data_path+"/train_model/data/one_player/full_for_partial_fit"
+    dir_names = os.listdir(full_dir)
+#    classifier = MLPClassifier(verbose=True, 
+#                               learning_rate_init=0.001,
+#                               batch_size=2000)
+    classifier = SGDClassifier(verbose=True,
+                               loss="log",
+                               class_weight={1:0.99, 0:0.01})
+    
+    # get full target vector
+    for dn in dir_names:
+        directory = full_dir + "/" + dn + "/"
+        #print(directory)
+        # try to load data
+        try:
+            target = load_sparse_csr(directory + "one_player_sparse_targets.npz")
+        except:
+            raise("The training data must be ready at {}/train_model/data/one_player/full/ before training model.".format(full_dir))
+        # concatenate the target vector to get full vector
+        if "target_all" in locals():
+            target_all = sp.sparse.hstack((target_all, target[:,tile]))
+        else:
+            target_all = target[:,tile]
+        #print(target_all.shape)
+     
+    avg_accuracy_scores = []
+    avg_auc_scores = []    
+    for dn in dir_names:
+        directory = full_dir + "/" + dn + "/"
+        # try to load data
+        try:
+            sparse_features = load_sparse_csr(directory + "one_player_sparse_features.npz")
+            target = load_sparse_csr(directory + "one_player_sparse_targets.npz")
+            target = target[:,tile]
+        except:
+            filename="one_player_sparse_features.npz OR waiting_tiles_sparse_targets.npz"
+            raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), filename)
+        
+        X = sparse_features #[0:600000,:]
+        y = target.T #[0:600000,:] # just forgot to make the dimension consistent
+        
+        y = np.array(y.todense()).ravel()
+        y_all = np.array(target_all.T.todense()).ravel()
+        
+        print("set(y) = %s"%set(y))
+        print("set(y_all) = %s"%set(y_all))
+        #print(X.shape, y.shape)
+        
+        
+#        classifier.partial_fit(X, y, np.unique(y_all))
+#        
+#        features_path = abs_data_path+"/train_model/data/one_player/test/one_player_sparse_features.npz"
+#        target_path = abs_data_path+"/train_model/data/one_player/test/one_player_sparse_targets.npz"
+#        
+#        # try to load data
+#        try:
+#            sparse_features = load_sparse_csr(features_path)
+#            sparse_targets = load_sparse_csr(target_path)
+#            sparse_target=sparse_targets[:,tile]
+#        except:
+#            filename="waiting_tiles_sparse_features.npz OR waiting_tiles_sparse_targets.npz"
+#            raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), filename)
+#            
+#        avg_accuracy_score, avg_auc_score = validate_classifier(clf=classifier,
+#                                                                sparse_features=sparse_features,
+#                                                                sparse_target=sparse_target)
+#        avg_accuracy_scores.append(avg_accuracy_score)
+#        avg_auc_scores.append(avg_auc_score)
+#        
+#        print("--------------------------------")
+#    
+#    if save_classifier:
+#        classifier_name = "one_player_{}.sav".format(tile)
+#        pickle.dump(classifier, open(abs_data_path+"/train_model/trained_models/"+classifier_name, 'wb'))
+#        
+#    return classifier, avg_accuracy_scores, avg_auc_scores    
+         
 if __name__=="__main__":
 
     tic = time.time()
