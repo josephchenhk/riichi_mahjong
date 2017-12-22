@@ -17,7 +17,7 @@ STAT_TOKEN = ''
 
 ENABLE_AI = True
 
-ENABLE_OPPONENT_AI = False
+ENABLE_OPPONENT_AI = True
 
 """
   Game type decoding:
