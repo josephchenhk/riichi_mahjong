@@ -21,19 +21,24 @@ import logging
 
 
 from train_model.train_model import gen_one_player_features
-from train_model.utils.tile import TilesConverter
+#from train_model.utils.tile import TilesConverter
 from mahjong.utils import find_isolated_tile_indices
 from mahjong.ai.agari import Agari as OldVersionAgari
 from mahjong.ai.simple_oneplayer_model import MainAI as OnePlayerAI
 #from mahjong.player import VisiblePlayer as Player
 from mahjong.table import Table
-from mahjong.meld import Meld
+#from mahjong.meld import Meld
 from mahjong.hand import FinishedHand
 from tenhou.decoder import TenhouDecoder
 #from mahjong.constants import DISPLAY_WINDS
 #from mahjong.table import Table
 from mahjong.player import VisiblePlayer
 from mahjong.tile import Tile
+
+from mahjong.hand_calculating.hand import HandCalculator
+from mahjong.tile import TilesConverter
+from mahjong.hand_calculating.hand_config import HandConfig
+from mahjong.meld import Meld
 
 from config.config import abs_data_path
 
@@ -322,7 +327,8 @@ class MonteCarlo(object):
     """
     decoder = TenhouDecoder()
     agari = Agari()
-    finished_hand = FinishedHand() 
+    finished_hand = FinishedHand()
+    hand_calculator = HandCalculator()
     verbose = False
     
     def __init__(self):
@@ -756,6 +762,19 @@ class MonteCarlo(object):
                             player_wind=player_wind,
                             round_wind=round_wind)
                 logger.info(result)
+                
+                melds = self.table.players[p].melds
+                result = self.hand_calculator.estimate_hand_value(tiles, 
+                                              win_tile,
+                                              melds=melds,
+                                              dora_indicators=dora_indicators,
+                                              config=HandConfig(is_tsumo=is_tsumo,
+                                                                is_riichi=is_riichi,
+                                                                player_wind=player_wind,
+                                                                round_wind=round_wind                                                               
+                                                                )
+                                              )
+                logger.info(result)
                 break
             
             # TODO: we only apply discard_tile strategy to our program, for the
@@ -848,6 +867,19 @@ class MonteCarlo(object):
                                         player_wind=player_wind,
                                         round_wind=round_wind)
                             logger.info(result)
+                            
+                            melds = self.table.players[p].melds
+                            result = self.hand_calculator.estimate_hand_value(tiles,
+                                                          win_tile,
+                                                          melds=melds,
+                                                          dora_indicators=dora_indicators,
+                                                          config=HandConfig(is_tsumo=is_tsumo,
+                                                                is_riichi=is_riichi,
+                                                                player_wind=player_wind,
+                                                                round_wind=round_wind,
+                                                                is_rinshan=is_rinshan)
+                                              )
+                            logger.info(result)
                             break
                         # if not win, we do the followings
                         if not self.table.players[0].in_riichi:
@@ -917,6 +949,18 @@ class MonteCarlo(object):
                                     called_kan_indices=None,
                                     player_wind=player_wind,
                                     round_wind=round_wind)
+                        logger.info(result)
+                        
+                        melds = self.table.players[p].melds
+                        result = self.hand_calculator.estimate_hand_value(tiles, 
+                                                      win_tile,
+                                                      melds=melds,
+                                                      dora_indicators=dora_indicators,
+                                                      config=HandConfig(is_tsumo=is_tsumo,
+                                                                is_riichi=is_riichi,
+                                                                player_wind=player_wind,
+                                                                round_wind=round_wind)
+                                              )
                         logger.info(result)
                         break
                     # if not win, we do the followings
