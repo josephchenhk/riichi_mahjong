@@ -1,6 +1,6 @@
 import os
 import re
-#import sys
+import sys
 import ast
 from optparse import OptionParser
 
@@ -18,9 +18,11 @@ from tenhou.client import TenhouClient
 from tenhou.decoder import TenhouDecoder
 from utils.logger import set_up_logging
 
+
 #from mahjong.ai.agari import Agari
 from extract_features import ExtractFeatures
 from mahjong.table import VisibleTable as Table # we comment line 15, replace Table with VisibleTable
+from mahjong.ai.call_melds import CallMelds
 
 logger = logging.getLogger('tenhou')
 logger2 = logging.getLogger('debug')
@@ -58,8 +60,8 @@ class TenhouLogReproducer(object):
         draw_tags = ['T', 'U', 'V', 'W']
         discard_tags = ['D', 'E', 'F', 'G']
 
-        player_draw = draw_tags[self.player_position]
 
+        player_draw = draw_tags[self.player_position]
         player_draw_regex = re.compile('^<[{}]+\d*'.format(''.join(player_draw)))
         
         draw_regex = re.compile('^<[{}]+\d*'.format(''.join(draw_tags)))
@@ -73,7 +75,11 @@ class TenhouLogReproducer(object):
         
         for n, tag in enumerate(self.round_content):
             if dry_run:
-                print(tag)
+                if (draw_regex.match(tag) and 'UN' not in tag) or (discard_regex.match(tag) and 'DORA' not in tag):
+                    tile = self.decoder.parse_tile(tag)
+                    print("%s %s"%(tag, TilesConverter.to_one_line_string([tile])))
+                else:
+                    print(tag)
 
             if not dry_run and tag == self.stop_tag:
                 break
@@ -139,6 +145,7 @@ class TenhouLogReproducer(object):
                 
             if discard_regex.match(tag) and 'DORA' not in tag:
                 tile = self.decoder.parse_tile(tag)
+                
                 player_sign = tag.upper()[1]
                 
                 # TODO: I don't know why the author wrote the code as below, the 
@@ -148,8 +155,38 @@ class TenhouLogReproducer(object):
                 
                 # Temporally solution to modify the player_seat
                 player_seat = (discard_tags.index(player_sign) + self.player_position)%4
-                #print("updated player seat:",player_seat)
-                
+
+                # Whenever a tile is discarded, the other players will check their
+                # hands to see if they could call meld (steal the tile).
+                try:
+                    next_tag = self.round_content[n+1]
+                except:
+                    next_tag = ""
+                for i in range(4):
+                    if i!=player_seat:
+                        is_kamicha_discard = (i-1==player_seat)
+                        comb = table.players[i].get_possible_melds(tile, is_kamicha_discard)
+                        table.players[i].possible_melds = comb   
+                        if len(comb)>0: # he can call melds now
+                              #print("\nplayer %s closed hand: %s"%(i,[t//4 for t in table.players[i].closed_hand]))
+                              print("player %s closed hand: %s"%(i,TilesConverter.to_one_line_string(table.players[i].closed_hand)))
+                              print("Tag: %s\nNext tag: %s"%(tag, next_tag))
+                              if '<N who=' in next_tag:
+                                  meld = self.decoder.parse_meld(next_tag)
+                                  # TODO: Obviously the player seat is confusing again. I can't
+                                  # get this part fixed. So let's just manually fix it for the moment.
+                                  meld.from_who = player_seat
+                                  print("%s meld from %s: get %s to form %s(%s): %s\n"%(meld.who, meld.from_who, meld.called_tile, meld.type, meld.opened, meld.tiles))
+                                  assert meld.called_tile==tile, "Called tile NOT equal to discarded tile!"
+                                  meld_tiles = [t//4 for t in meld.tiles]
+                              else:
+                                  meld_tiles = []
+                              # This part is to extract the features for stealing
+                              features = self.extract_features.get_stealing_features(table)
+                              # write data to log file
+                              # Note: since the first info is table info, player info starts
+                              # from 1, so we use (i+1) here.
+                              self.feature_to_logger(features, i+1, meld_tiles, tile, comb)
                 
                 if player_seat == 0:
                     table.players[player_seat].discard_tile(DiscardOption(table.players[player_seat], tile // 4, 0, [], 0))
@@ -162,13 +199,11 @@ class TenhouLogReproducer(object):
                     # to recalculate revealed tiles and etc.
                     table.add_discarded_tile(player_seat, tile_to_discard, is_tsumogiri)
                     
-                    #print("seat:",player_seat)
-                    #print("tiles:", TilesConverter.to_one_line_string(table.players[player_seat].tiles), " discard?:", TilesConverter.to_one_line_string([tile_to_discard]))
                     table.players[player_seat].tiles.remove(tile_to_discard)
             
                 # This part is to extract the features we need.    
-                player_seat, features = self.execute_extraction(tag, table)
-                raw_records.append((player_seat, features))
+#                player_seat, features = self.execute_extraction(tag, table)
+#                raw_records.append((player_seat, features))
 
             if '<N who=' in tag:
                 meld = self.decoder.parse_meld(tag)
@@ -202,15 +237,15 @@ class TenhouLogReproducer(object):
 #                print("parse: {}".format(self.decoder.parse_who_called_riichi(tag)))
 #                print("\n")
                 # We need to delete those unnecessary records for one player mahjong
-                for (player_seat, features) in raw_records:
-                    if player_seat==(who_called_riichi+1):
-                        clean_records.append((player_seat,features))
+#                for (player_seat, features) in raw_records:
+#                    if player_seat==(who_called_riichi+1):
+#                        clean_records.append((player_seat,features))
                 
                 skip = True # skip all remaining tags untill <INIT>
         
         # Write the records to log        
-        for player_seat, features in clean_records:
-            self.feature_to_logger(features, player_seat)
+#        for player_seat, features in clean_records:
+#            self.feature_to_logger(features, player_seat)
               
             # This part is to extract the features that will be used to train
             # our model.
@@ -258,7 +293,7 @@ class TenhouLogReproducer(object):
 
             print('Discard: {}'.format(TilesConverter.to_one_line_string([tile])))
             
-    def feature_to_logger(self, features, player_seat):
+    def feature_to_logger(self, features, player_seat, meld_tiles, tile, comb):
         """
         param features:
         """
@@ -296,29 +331,31 @@ class TenhouLogReproducer(object):
          player_seat,
          player_uma) = ast.literal_eval(d2)
         
-        player_discard = player_discarded_tiles[-1]
+#        if player_discarded_tiles:
+#            player_discard = player_discarded_tiles[-1]
+#        else:
+#            player_discard = -1
                 
         #logger2.info(table_info + ";" + player_info + ";" + str(machi_34) + ";" + str(score))    
-        logger2.info(str(player_last_draw) + ";" + 
-                     str(player_discard) + ";" + 
+#        logger2.info(str(player_last_draw) + ";" + 
+#                     str(player_discard) + ";" + 
+#                     str(player_closed_hand) + ";" +
+#                     str(table_revealed_tiles)
+#                     )
+
+        logger2.info(str(meld_tiles) + ";" + 
+                     str(tile) + ";" +  # This info might not be used, but let's keep it for checking purpose 
+                     str(comb) + ";" +  # This info might not be used, but let's just keep it for checking purpose
                      str(player_closed_hand) + ";" +
-                     str(table_revealed_tiles)
-                     )   
+                     str(player_melds) + ";" +
+                     str(table_revealed_tiles) + ";" + 
+                     str(table_turns)
+                     )    
         
-    def execute_extraction(self, tag, table):
-        if '<D' in tag:
-            features = self.extract_features.get_one_player_discards_features(table)
-            return 1, features              
-        if '<E' in tag:
-            features = self.extract_features.get_one_player_discards_features(table)
-            return 2, features
-        if '<F' in tag:
-            features = self.extract_features.get_one_player_discards_features(table)
-            return 3, features               
-        if '<G' in tag:
-            features = self.extract_features.get_one_player_discards_features(table)
-            return 4, features
-        return None, None
+    def execute_extraction(self, table):
+        features = self.extract_features.get_stealing_features(table)             
+        return features
+     
     
 #    def execute_extraction(self, tag, score, table, to_logger):
 #        if '<D' in tag:

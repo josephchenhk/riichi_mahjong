@@ -118,7 +118,7 @@ class Table(object):
         """
         tile in 136 format
         """
-        return plus_dora(tile, self.dora_indicators) or is_aka_dora(tile)
+        return plus_dora(tile, self.dora_indicators) or is_aka_dora(tile,True)
 
     def set_players_scores(self, scores, uma=None):
         for i in range(0, len(scores)):

@@ -6,11 +6,13 @@ Created on Wed Oct 25 12:03:04 2017
 """
 import time
 
+from train_model.train_model import stealing_data_preprocessing
 from train_model.train_model import one_player_data_preprocessing
 from train_model.train_model import wfw_scores_data_preprocessing
 from train_model.train_model import scores_data_preprocessing
 from train_model.train_model import waiting_tiles_data_preprocessing
 from train_model.train_model import is_waiting_data_preprocessing
+from train_model.train_model import train_stealing_partial_fit
 from train_model.train_model import train_one_player_partial_fit
 from train_model.train_model import train_wfw_scores_partial_fit
 from train_model.train_model import train_scores_partial_fit
@@ -31,6 +33,7 @@ if __name__=="__main__":
 #    scores_data_preprocessing() 
 #    wfw_scores_data_preprocessing() 
 #    one_player_data_preprocessing()
+#    stealing_data_preprocessing()
     
 #    clf, avg_accuracy_scores, avg_auc_scores = train_is_waiting_partial_fit(load_classifier=False, save_classifier=True)
 #    plot_scores(avg_accuracy_scores,
@@ -59,11 +62,21 @@ if __name__=="__main__":
 #    clf, avg_mse_scores = train_wfw_scores_partial_fit(load_classifier=False, save_classifier=True,
 #                                                       save_scaler=True)
 
+#    for tile in range(34):
+#        clf, avg_accuracy_scores, avg_auc_scores = train_one_player_partial_fit(tile=tile, load_classifier=False, save_classifier=True)     
+#        plot_scores(avg_accuracy_scores, 
+#                    avg_auc_scores,
+#                    save_path=abs_data_path+"/train_model/trained_models/plots_oneplayer/",
+#                    save_name=("Accuracy_discard_tile_{}.png".format(tile),
+#                               "AUC_discard_tile_{}.png".format(tile))
+#                    )
+
+
     for tile in range(34):
-        clf, avg_accuracy_scores, avg_auc_scores = train_one_player_partial_fit(tile=tile, load_classifier=False, save_classifier=True)     
+        clf, avg_accuracy_scores, avg_auc_scores = train_stealing_partial_fit(tile=tile, load_classifier=False, save_classifier=True)     
         plot_scores(avg_accuracy_scores, 
                     avg_auc_scores,
-                    save_path=abs_data_path+"/train_model/trained_models/plots_oneplayer/",
+                    save_path=abs_data_path+"/train_model/trained_models/plots_stealing/",
                     save_name=("Accuracy_discard_tile_{}.png".format(tile),
                                "AUC_discard_tile_{}.png".format(tile))
                     )
