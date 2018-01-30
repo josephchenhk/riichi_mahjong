@@ -1,13 +1,14 @@
-from mahjong.constants import EAST, FIVE_RED_MAN, FIVE_RED_PIN, FIVE_RED_SOU, HONOR_INDICES
-from utils.settings_handler import settings
+from mahjong.constants import EAST, FIVE_RED_MAN, FIVE_RED_PIN, FIVE_RED_SOU, HONOR_INDICES, TERMINAL_INDICES
 
 
-def is_aka_dora(tile):
+def is_aka_dora(tile, aka_enabled):
     """
     :param tile: int 136 tiles format
+    :param aka_enabled: depends on table rules
     :return: boolean
     """
-    if not settings.FIVE_REDS:
+
+    if not aka_enabled:
         return False
 
     if tile in [FIVE_RED_MAN, FIVE_RED_PIN, FIVE_RED_SOU]:
@@ -16,7 +17,7 @@ def is_aka_dora(tile):
     return False
 
 
-def plus_dora(tile, dora_indicators, count_aka_dora=True):
+def plus_dora(tile, dora_indicators):
     """
     :param tile: int 136 tiles format
     :param dora_indicators: array of 136 tiles format
@@ -24,9 +25,6 @@ def plus_dora(tile, dora_indicators, count_aka_dora=True):
     """
     tile_index = tile // 4
     dora_count = 0
-
-    if count_aka_dora and is_aka_dora(tile):
-        dora_count += 1
 
     for dora in dora_indicators:
         dora //= 4
@@ -127,6 +125,14 @@ def is_honor(tile):
     return tile >= 27
 
 
+def contains_terminals(hand_set):
+    """
+    :param hand_set: array of 34 tiles
+    :return: boolean
+    """
+    return any([x in TERMINAL_INDICES for x in hand_set])
+
+
 def simplify(tile):
     """
     :param tile: 34 tile format
@@ -177,21 +183,3 @@ def count_tiles_by_suits(tiles_34):
                 item['count'] += tile
 
     return suits
-
-###############################################################################
-# The following functions are added by me (joseph). 
-###############################################################################
-tile_table = {}
-for n in range(136):
-    if n%4==0:
-        tile_table[(n, n+1, n+2, n+3)] = n//4
-                       
-def tile_136_to_34(tile):
-    """
-    Turn a tile in 136 format to 34 format
-    """
-    for tile_136 in tile_table:
-        if tile in tile_136:
-            return tile_table[tile_136]
-    return None
-    

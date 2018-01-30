@@ -21,7 +21,7 @@ if __name__=="__main__":
     
     CREATE_NO_WINDOW = 0x08000000
     
-    for n,fn in enumerate(mjlog_names[:]): # (mjlog_names[0:100]): #
+    for n,fn in enumerate(mjlog_names[:]): # (mjlog_names[0:100]): # 
         if "mjlog" not in fn:
             continue
         
@@ -35,7 +35,10 @@ if __name__=="__main__":
         #cmd = "python reproducer_test_for_scores_wfw.py -m {} -d".format(mjlog) 
 
         # For one player
-        cmd = "python reproducer_test_for_one_player.py -m {} -d".format(mjlog) 
+        #cmd = "python reproducer_test_for_one_player.py -m {} -d".format(mjlog) 
+        
+        # For stealing
+        cmd = "python reproducer_test_for_stealing.py -m {} -d".format(mjlog)  
         
         #os.system(cmd)
         p = subprocess.Popen(cmd, shell=False, 

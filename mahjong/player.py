@@ -9,6 +9,8 @@ from mahjong.meld import Meld
 from mahjong.tile import TilesConverter, Tile
 from utils.settings_handler import settings
 
+from mahjong.ai.call_melds import CallMelds
+
 logger = logging.getLogger('tenhou')
 
 
@@ -337,7 +339,7 @@ class VisiblePlayer(Player, EnemyPlayer):
     # ADD[joseph 20171215]: add waiting and fold feature to player
     waiting = False
     fold = False
-    #tiles = []
+    _possible_melds = []
     
     def __init__(self, table, seat, dealer_seat, previous_ai):
         super().__init__(table, seat, dealer_seat, previous_ai)
@@ -373,7 +375,25 @@ class VisiblePlayer(Player, EnemyPlayer):
 
         self.melds.append(meld)
         
-        
+    def get_possible_melds(self, tile, is_kamicha_discard):
+        """
+        :param tile:
+        :param is_kamicha_discard:
+        :return: list of int(0-33), possible combinations
+        """
+        in_riichi = self.in_riichi
+        closed_hand = self.closed_hand
+        return CallMelds.possible_combinations(tile, is_kamicha_discard, closed_hand, in_riichi)
+       
+    @property    
+    def possible_melds(self):
+        return self._possible_melds
+    
+    @possible_melds.setter
+    def possible_melds(self, comb):
+        # TODO: add some conditions to make sure input comb is valid
+        self._possible_melds = comb
+    
     def _load_ai(self):
         if self.previous_ai:
             try:

@@ -24,3 +24,5 @@ Finish Monte Carlo simulation.
 ## **Note**
 
 (1). Opponent model (mahjong.ai.opponent_model.py) is now under development. Note that we have already switched to opponent model in mahjong.player.py (line 262-266), which means we have intentionally turn off the original AI of the author.
+
+(2). An example to use in reproduce_test: -m ..\DATA\riichi_mahjong\raw_data\2016120921gm-00a9-0000-ec827574.mjlog -d
